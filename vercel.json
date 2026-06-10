@@ -1,10 +1,4 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd frontend && npm ci",
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ./frontend/",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "experimentalServices": {
       "frontend": {
           "root": "frontend",
