@@ -1,0 +1,95 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-family-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-family-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --radius-card: 0.5rem;
+  --shadow-card: 0 1px 0 rgba(28, 25, 23, 0.04);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply m-0 min-h-dvh bg-white text-stone-900 antialiased transition-colors duration-200;
+    font-family: var(--font-family-sans);
+  }
+
+  .dark body {
+    @apply bg-stone-950 text-stone-100;
+  }
+
+  #root {
+    @apply min-h-dvh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-family-display);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    @apply bg-stone-800 text-stone-50;
+  }
+
+  .dark ::selection {
+    @apply bg-stone-200 text-stone-900;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-family-display);
+  }
+
+  .surface-card {
+    @apply rounded-[var(--radius-card)] border border-stone-200/90 bg-white shadow-[var(--shadow-card)] transition-colors duration-200 dark:border-stone-700/90 dark:bg-stone-900;
+  }
+
+  .surface-muted {
+    @apply rounded-[var(--radius-card)] border border-stone-200/70 bg-white transition-colors duration-200 dark:border-stone-700/60 dark:bg-stone-900/80;
+  }
+
+  .link-quiet {
+    @apply text-stone-700 underline decoration-stone-300 underline-offset-[5px] transition hover:text-stone-900 hover:decoration-stone-500 dark:text-stone-300 dark:decoration-stone-600 dark:hover:text-stone-100;
+  }
+
+  .focus-ring {
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-800/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-stone-200/30 dark:focus-visible:ring-offset-stone-950;
+  }
+
+  @keyframes landing-marquee-scroll {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .landing-marquee-track {
+    display: flex;
+    width: max-content;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .landing-marquee-animate .landing-marquee-track {
+      animation: landing-marquee-scroll 32s linear infinite;
+    }
+  }
+}
