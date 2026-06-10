@@ -12,6 +12,20 @@ dist
 dist-ssr
 *.local
 
+# Environment — never commit secrets; keep templates tracked
+.env
+.env.*
+!.env.example
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+
+# Coverage & typecheck caches
+coverage/
+*.tsbuildinfo
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

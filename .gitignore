@@ -1,0 +1,11 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors / local tooling
+.idea/
+*.code-workspace
+
+# Logs at repo root (if any)
+*.log
