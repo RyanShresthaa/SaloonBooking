@@ -1,5 +1,8 @@
 import api from '../axios';
 
+/** Standard API envelope from `sendSuccess` / `sendCreated`. */
+export type ApiSuccess<T> = { success: boolean; message: string; data: T };
+
 export type StaffMember = {
   id: string;
   name: string;
@@ -18,7 +21,8 @@ export type SalonHours = {
   timezoneNote: string;
 };
 
-export const listStaffTeam = () => api.get<{ team: StaffMember[]; salonHours: SalonHours }>('/staff/team');
+export const listStaffTeam = () =>
+  api.get<ApiSuccess<{ team: StaffMember[]; salonHours: SalonHours }>>('/staff/team');
 
 export type CreateStaffMemberPayload = {
   name: string;
@@ -55,7 +59,7 @@ export type StaffTimeOffRow = {
   staffMember?: { id: string; name: string; email: string; role: string };
 };
 
-export const listStaffTimeOff = () => api.get<StaffTimeOffRow[]>('/staff/time-off');
+export const listStaffTimeOff = () => api.get<ApiSuccess<StaffTimeOffRow[]>>('/staff/time-off');
 
 export const createStaffTimeOff = (body: { userId: string; startDate: string; endDate: string; reason?: string }) =>
   api.post('/staff/time-off', body);

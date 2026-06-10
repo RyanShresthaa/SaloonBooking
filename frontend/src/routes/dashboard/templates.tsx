@@ -211,7 +211,8 @@ export default function TemplatesPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {templates.map((t) => {
-              const locked = Boolean(t.requiresVip) && Boolean(selectedAppointment) && !selectedAppointment.isVip;
+              const locked =
+                Boolean(t.requiresVip) && selectedAppointment != null && !selectedAppointment.isVip;
               return (
                 <div
                   key={t.id}

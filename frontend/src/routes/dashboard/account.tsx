@@ -144,7 +144,7 @@ export default function AccountPage() {
             />
           </div>
           <label className="flex cursor-pointer items-start gap-3 rounded-md border border-stone-200 bg-stone-50/60 px-4 py-3">
-            <input type="checkbox" className="mt-1 h-4 w-4 rounded border-stone-300 text-stone-900" {...register('marketingEmailOptIn', { valueAsBoolean: true })} />
+            <input type="checkbox" className="mt-1 h-4 w-4 rounded border-stone-300 text-stone-900" {...register('marketingEmailOptIn', { setValueAs: (v) => v === true || v === 'on' })} />
             <span className="text-sm text-stone-800">
               I agree to receive occasional marketing emails from the salon (offers, events). I can turn this off anytime.
             </span>

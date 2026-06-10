@@ -329,7 +329,7 @@ export default function EditAppointmentPage() {
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4 rounded border-stone-300 text-stone-900"
-                  {...register('isVip', { valueAsBoolean: true })}
+                  {...register('isVip', { setValueAs: (v) => v === true || v === 'on' })}
                 />
                 <span>
                   <span className="text-sm font-medium text-stone-900 dark:text-stone-100">VIP booking</span>

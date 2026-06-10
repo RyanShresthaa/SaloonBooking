@@ -10,7 +10,6 @@ import {
   listStaffTimeOff,
   createStaffTimeOff,
   deleteStaffTimeOff,
-  type StaffMember,
   type StaffTimeOffRow,
 } from '@/lib/api/staff';
 import AuthGuard from '@/components/layout/AuthGuard';
@@ -47,7 +46,7 @@ export default function StaffAdminPage() {
     queryKey: ['staff-team'],
     queryFn: async () => {
       const res = await listStaffTeam();
-      return res.data.data as { team: StaffMember[]; salonHours: Record<string, string> };
+      return res.data.data;
     },
     enabled: user?.role === 'admin',
   });

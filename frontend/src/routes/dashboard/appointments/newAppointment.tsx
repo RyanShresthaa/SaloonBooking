@@ -318,7 +318,7 @@ export default function NewAppointmentPage() {
             <input
               type="checkbox"
               className="mt-1 h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-800/20"
-              {...register('emailRemindersOptIn', { valueAsBoolean: true })}
+              {...register('emailRemindersOptIn', { setValueAs: (v) => v === true || v === 'on' })}
             />
             <span>
               <span className="text-sm font-medium text-stone-900">Email reminders</span>
@@ -334,7 +334,7 @@ export default function NewAppointmentPage() {
             <input
               type="checkbox"
               className="mt-1 h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-800/20"
-              {...register('repeatNextWeek', { valueAsBoolean: true })}
+              {...register('repeatNextWeek', { setValueAs: (v) => v === true || v === 'on' })}
             />
             <span>
               <span className="text-sm font-medium text-stone-900 dark:text-stone-100">Repeat same time next week</span>
@@ -348,7 +348,7 @@ export default function NewAppointmentPage() {
             <input
               type="checkbox"
               className="mt-1 h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-800/20"
-              {...register('isVip', { valueAsBoolean: true })}
+              {...register('isVip', { setValueAs: (v) => v === true || v === 'on' })}
             />
             <span>
               <span className="text-sm font-medium text-stone-900">VIP visit</span>
