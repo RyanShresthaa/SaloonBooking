@@ -2,6 +2,21 @@
 
 This document complements the Salon app codebase with production-minded practices.
 
+## Vercel (frontend only)
+
+The **Node API** (`backend/`) is not deployed on Vercel; host it elsewhere (Railway, Render, Fly.io, etc.) and set `VITE_API_URL` / `VITE_SOCKET_URL` on Vercel for the SPA.
+
+1. **Root Directory**: Vercel → Project → **Settings → General → Root Directory** = `frontend`.
+2. **Build**: use defaults (Vite: install `npm install`, build `npm run build`, output `dist`). Do not add a second “backend” service in Vercel for this repo.
+3. **SPA routing**: `frontend/vercel.json` only contains rewrites to `index.html` for React Router.
+
+### Build error: `Service "backend" must specify "framework", "entrypoint", …`
+
+That means Vercel still thinks this project has a **multi-service** setup named `backend`. Fix **one** of these (whichever applies):
+
+- **Git**: On the branch Vercel builds (e.g. `v1`), ensure there is **no** root `vercel.json` with `experimentalServices` / a `backend` service. This repo should have **no** `vercel.json` at the monorepo root—only `frontend/vercel.json`.
+- **Dashboard**: In the same Vercel project, open **Settings** and remove any **second service**, microfrontend, or experimental multi-root entry pointing at `backend`. If the UI is stuck, create a **new** Vercel project linked to the same repo with Root Directory `frontend` and no extra services.
+
 ## Database backups
 
 - **Postgres**: schedule nightly `pg_dump` (or your host’s automated backups) and retain at least 7 daily + 4 weekly copies.
