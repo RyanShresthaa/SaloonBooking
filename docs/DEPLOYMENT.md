@@ -2,20 +2,21 @@
 
 This document complements the Salon app codebase with production-minded practices.
 
-## Vercel (frontend only)
+## Vercel (frontend + optional Services backend)
 
-The **Node API** (`backend/`) is not deployed on Vercel; host it elsewhere (Railway, Render, Fly.io, etc.) and set `VITE_API_URL` / `VITE_SOCKET_URL` on Vercel for the SPA.
+The **Services** product uses `experimentalServices` in root `vercel.json`. Each service must include an **`entrypoint`** (path from the repo root), not only `root` — see [Vercel: Services](https://vercel.com/docs/services). Your Vercel project must use the **Services** framework mode when this block is present.
 
-1. **Root Directory**: Vercel → Project → **Settings → General → Root Directory** = **empty** or `.` (the **repository root**). The repo’s root `vercel.json` runs `cd frontend && …` and publishes `frontend/dist`.
-2. **Do not** set Root Directory to `frontend` while using that root `vercel.json` (paths would break). Do not add a second “backend” service or `experimentalServices` in `vercel.json`.
-3. **SPA routing**: root `vercel.json` includes rewrites to `index.html` for React Router.
+**Current `vercel.json`:** Vite app at `/`, Express entry at `backend/server.js` mounted under `/_/backend`.
+
+**Reality check:** this repo’s API is a long-lived **Express + Socket.IO + Bull + Postgres** server. Even with a valid `entrypoint`, it may still be a poor fit for Vercel’s service runtime (timeouts, WebSockets, background workers). If deploys fail or behavior breaks, host **`backend/`** on Railway, Render, Fly.io, etc., and keep **only** the frontend on Vercel (single-service `vercel.json` without `experimentalServices`).
 
 ### Build error: `Service "backend" must specify "framework", "entrypoint", …`
 
-That means Vercel still thinks this project has a **multi-service** setup named `backend`. Fix **one** of these (whichever applies):
+Add **`entrypoint`** (and usually **`framework`**) for every service. Prefer the shape in root `vercel.json`, not `root` alone.
 
-- **Git**: On the branch Vercel builds, ensure root `vercel.json` has **no** `experimentalServices` and **no** `backend` service block.
-- **Dashboard**: Remove any extra **service** / microfrontend / experimental `backend` entry. If the UI is stuck, create a **new** Vercel project linked to the same repo (Root Directory = repo root, no extra services).
+### Build error: `Service "backend" must specify...` (dashboard / old commits)
+
+Remove stale multi-service config or deploy a commit whose `vercel.json` matches the layout above.
 
 ## Database backups
 
