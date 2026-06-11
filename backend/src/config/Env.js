@@ -38,6 +38,23 @@ const env = {
     pass: process.env.EMAIL_PASS,
   },
 
+  /**
+   * Outbound mail transport: `resend` = Resend API only; `smtp` = nodemailer only; `auto` = Resend if
+   * `RESEND_API_KEY` is set, otherwise SMTP (`EMAIL_*`).
+   */
+  mailProvider: (() => {
+    const p = (process.env.MAIL_PROVIDER || 'auto').trim().toLowerCase();
+    if (p === 'resend' || p === 'smtp') return p;
+    return 'auto';
+  })(),
+
+  /**
+   * Resend.com HTTP API (HTTPS :443). Use on Render when SMTP to Gmail/etc. times out.
+   * Optional `EMAIL_FROM` e.g. `Salon <noreply@your-verified-domain.com>` (or Resend onboarding sender for tests).
+   */
+  resendApiKey: process.env.RESEND_API_KEY?.trim(),
+  emailFrom: process.env.EMAIL_FROM?.trim(),
+
   redis: {
     url: process.env.REDIS_URL,
     host: process.env.REDIS_HOST || '127.0.0.1',

@@ -74,41 +74,61 @@ Add these (values from your Postgres/Redis dashboards and secrets you generate):
 
 | Key | Notes |
 |-----|--------|
-| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS` | For real verification/password emails. **Do not** use `localhost` / `127.0.0.1` on Render (nothing listens there → `ECONNREFUSED` and failed signup). Omit these vars until you use a real provider (Gmail SMTP, SendGrid, Resend, etc.), or delete `EMAIL_HOST` if you copied a laptop `.env`. |
+| `MAIL_PROVIDER` | `resend` = only Resend API (requires `RESEND_API_KEY`). `auto` = Resend if key set, else SMTP. `smtp` = only `EMAIL_*` (ignores Resend key). |
+| `RESEND_API_KEY`, `EMAIL_FROM` | **Recommended on Render** — HTTPS email (avoids Gmail SMTP `ETIMEDOUT`). See §5b. |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS` | Classic SMTP (omit if using Resend API). **Never** `localhost` on Render. |
 | `STRIPE_*`, `FEATURE_*` | See `backend/.env.example` and `Env.js` |
 
 Save → **Manual Deploy** → **Deploy latest commit** (or push to trigger auto-deploy).
 
 ---
 
-## 5b. Outbound email (SMTP) on Render
+## 5b. Outbound email on Render
 
-Render only runs your **Node API**; it does **not** include a mail server. To receive verification and password-reset emails in a real inbox, use a **transactional email provider** and put its **SMTP** settings on the Web Service.
+Render only runs your **Node API**; it does **not** include a mail server. You need a **transactional email provider**.
 
-### What to do
+### Option A — Resend HTTP API (recommended on Render)
 
-1. **Pick a provider** (any that offers SMTP). Common options: [Resend](https://resend.com/docs/send-with-smtp), [SendGrid](https://docs.sendgrid.com/for-developers/sending-email/getting-started-smtp), [Brevo](https://help.brevo.com/hc/en-us/articles/209467485), [Mailgun](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/send-via-smtp/). Create an account and complete their domain / sender verification steps so mail is allowed to leave their servers.
-2. **Copy SMTP values** from the provider’s docs (host, port, username, password). Typical patterns:
-   - **Port `587`:** STARTTLS (the app treats this as non-`secure` in nodemailer).
-   - **Port `465`:** implicit TLS (the app sets `secure: true` when `EMAIL_PORT` is `465`).
-3. In Render: open your **Web Service** (the API) → **Environment** → **Add Environment Variable** (or edit existing). Set exactly these keys (names must match what the code reads):
+**Gmail SMTP from Render often fails with `ETIMEDOUT`** (Google blocks or drops many cloud datacenter SMTP connections). This app supports **Resend’s HTTPS API** (port 443), which usually works reliably from Render.
+
+1. Sign up at [resend.com](https://resend.com), create an **API key**.
+2. **Verify a domain** (or use Resend’s onboarding rules for testing) so you can send `from` that domain.
+3. On your Render Web Service → **Environment**, add:
+
+| Key | Example / notes |
+|-----|------------------|
+| `MAIL_PROVIDER` | Set to `resend` so the API **never** uses SMTP (only Resend). Use `auto` if you want “Resend when `RESEND_API_KEY` is set, else SMTP”. |
+| `RESEND_API_KEY` | `re_…` from Resend dashboard |
+| `EMAIL_FROM` | After domain verify: `Salon <noreply@yourdomain.com>` (must match a verified sender in Resend) |
+
+4. Save → redeploy. With `MAIL_PROVIDER=resend` (or `auto` while the key is set), **`EMAIL_*` SMTP is not used** for sending.
+
+### Option B — SMTP (any provider)
+
+If you prefer classic SMTP (SendGrid, Mailgun, Resend SMTP, etc.):
+
+1. **Pick a provider** that documents SMTP for cloud servers. [SendGrid SMTP](https://docs.sendgrid.com/for-developers/sending-email/getting-started-smtp), [Resend SMTP](https://resend.com/docs/send-with-smtp), [Brevo](https://help.brevo.com/hc/en-us/articles/209467485), [Mailgun](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/send-via-smtp/).
+2. **Copy SMTP values** (host, port, username, password). Typical patterns:
+   - **Port `587`:** STARTTLS.
+   - **Port `465`:** implicit TLS (`secure: true` in the app).
+3. In Render → Web Service → **Environment**:
 
 | Key | What to put |
 |-----|----------------|
-| `EMAIL_HOST` | Provider’s SMTP hostname (e.g. `smtp.resend.com`, `smtp.sendgrid.net`). **Never** `localhost` or `127.0.0.1` on Render. |
-| `EMAIL_PORT` | Usually `587` or `465` (match the provider). |
-| `EMAIL_USER` | SMTP username from the provider (sometimes a fixed string like `resend`, sometimes `apikey`). |
-| `EMAIL_PASS` | SMTP password or API key the provider gives for SMTP. |
+| `EMAIL_HOST` | Provider SMTP hostname. **Never** `localhost` / `127.0.0.1`. |
+| `EMAIL_PORT` | Usually `587` or `465`. |
+| `EMAIL_USER` | SMTP username. |
+| `EMAIL_PASS` | SMTP password / API key. |
 
-4. Click **Save Changes**. Trigger a **Manual Deploy** (or push a commit) so the running service picks up new variables.
-5. **`CLIENT_URL`** on the same service must be your **live SPA URL** (e.g. `https://your-app.vercel.app`). Verification links in emails are built from that value.
+4. Save → redeploy.
+5. **`CLIENT_URL`** must be your live SPA URL (verification links use it).
 
 ### How to confirm
 
-- Register a test user; you should get **`verificationEmailSent: true`** in the API response (and the register success screen should say email was sent).
-- If it still fails, open **Logs** on the Web Service and look for nodemailer / SMTP errors (wrong password, unverified domain, firewall).
+- Register a test user; the API should return **`verificationEmailQueued: true`** when mail is scheduled (Resend or SMTP).
+- Check **Render → Logs** for `Email sent via Resend` or `Email sent to …` / errors.
 
-If you **omit** all `EMAIL_*` variables, the API can still create accounts but will **not** send mail (and may log the verify URL on the server for debugging only).
+If you omit both **Resend** and **SMTP**, accounts can still be created but no mail is sent (logs include a **redacted** debug link only).
 
 ---
 

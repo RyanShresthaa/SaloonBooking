@@ -4,6 +4,17 @@ import { sendEmail, buildVerificationEmail, buildPasswordResetEmail } from '../u
 import env from '../config/Env.js';
 import logger from '../utils/Logger.js';
 
+/** Avoid leaking JWT reset/verify tokens in server logs. */
+function redactUrlToken(url) {
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has('token')) u.searchParams.set('token', '(redacted)');
+    return u.toString();
+  } catch {
+    return '[invalid url]';
+  }
+}
+
 /** Hosts that look "configured" in .env but cannot receive mail on cloud hosts (e.g. Render). */
 function isLoopbackSmtpHost(host) {
   const h = (host || '').trim().toLowerCase();
@@ -16,6 +27,13 @@ function isSmtpConfigured() {
   const user = env.email?.user?.trim();
   if (!host || !user || isLoopbackSmtpHost(host)) return false;
   return true;
+}
+
+/** Outbound mail: `resend` = API only; `smtp` = nodemailer only; `auto` = Resend when RESEND_API_KEY set else SMTP. */
+function isOutboundEmailConfigured() {
+  if (env.mailProvider === 'resend') return Boolean(env.resendApiKey);
+  if (env.mailProvider === 'smtp') return isSmtpConfigured();
+  return Boolean(env.resendApiKey) || isSmtpConfigured();
 }
 
 class AuthService {
@@ -52,8 +70,8 @@ class AuthService {
 
     let verificationEmailSent = false;
     let verificationEmailQueued = false;
-    if (isSmtpConfigured()) {
-      /** Do not await SMTP — avoids 15–25s UI freezes when Gmail/network is slow or timing out. */
+    if (isOutboundEmailConfigured()) {
+      /** Do not await mail transport — avoids long hangs when SMTP times out (e.g. Render → Gmail). */
       verificationEmailQueued = true;
       void sendEmail({
         to: user.email,
@@ -67,12 +85,12 @@ class AuthService {
           logger.error(`Failed to send verification email to ${user.email}:`, err);
           const reason = err?.code || err?.message || 'unknown';
           logger.warn(
-            `[auth] Verification email not delivered (${reason}). Verify URL for ${user.email}: ${verificationUrl}`
+            `[auth] Verification email not delivered (${reason}). Debug link (token redacted) for ${user.email}: ${redactUrlToken(verificationUrl)}`
           );
         });
     } else {
       logger.warn(
-        `[auth] SMTP not configured (${env.nodeEnv}); user created without verification email. Verify URL for ${user.email}: ${verificationUrl}`
+        `[auth] No outbound email configured (${env.nodeEnv}); user created without verification email. Debug link: ${redactUrlToken(verificationUrl)}`
       );
     }
 
@@ -136,23 +154,23 @@ class AuthService {
 
     const verificationUrl = `${env.clientUrl}/verify-email?token=${verificationToken}`;
 
-    if (isSmtpConfigured()) {
+    if (isOutboundEmailConfigured()) {
       void sendEmail({
         to: user.email,
         subject: 'Verify your Salon App account',
         html: buildVerificationEmail(verificationUrl),
       })
-        .then(() => logger.info(`[auth] Resend: verification email sent to ${user.email}`))
+        .then(() => logger.info(`[auth] resend-verification: email sent to ${user.email}`))
         .catch((err) => {
           logger.error(`Failed to send verification email to ${user.email}:`, err);
           const reason = err?.code || err?.message || 'unknown';
           logger.warn(
-            `[auth] Resend: verification email not delivered (${reason}). Verify URL for ${user.email}: ${verificationUrl}`
+            `[auth] resend-verification: email not delivered (${reason}). Debug link for ${user.email}: ${redactUrlToken(verificationUrl)}`
           );
         });
     } else {
       logger.warn(
-        `[auth] SMTP not configured; resend skipped. Verify URL for ${user.email}: ${verificationUrl}`
+        `[auth] No outbound email configured; resend skipped. Debug link for ${user.email}: ${redactUrlToken(verificationUrl)}`
       );
     }
 
@@ -201,8 +219,8 @@ class AuthService {
     const resetToken = generatePasswordResetToken({ id: user.id, purpose: 'password-reset' });
     const resetUrl = `${env.clientUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
 
-    if (!isSmtpConfigured()) {
-      logger.warn('[auth] SMTP not configured; password reset email not sent.');
+    if (!isOutboundEmailConfigured()) {
+      logger.warn('[auth] No outbound email configured; password reset email not sent.');
       return { ok: true };
     }
 
@@ -218,7 +236,9 @@ class AuthService {
         await user.update({ passwordResetToken: null });
         logger.error(`Failed to send password reset email to ${user.email}:`, err);
         if (env.nodeEnv !== 'production') {
-          logger.warn(`[dev] Skipping reset email (SMTP error). Reset URL for ${user.email}: ${resetUrl}`);
+          logger.warn(
+            `[dev] Skipping reset email (SMTP error). Reset link for ${user.email}: ${redactUrlToken(resetUrl)}`
+          );
         }
       });
 

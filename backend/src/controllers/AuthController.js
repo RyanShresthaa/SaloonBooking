@@ -8,7 +8,7 @@ const register = async (req, res, next) => {
     const result = await authService.register({ name, email, password });
     const message = result.verificationEmailQueued
       ? 'Registration successful. A verification email is being sent — check your inbox and spam in the next minute.'
-      : 'Registration successful. No verification email was scheduled (SMTP not configured on the server). Add EMAIL_HOST, EMAIL_USER, and EMAIL_PASS on the API host (e.g. Render), then use Resend verification.';
+      : 'Registration successful. No verification email was scheduled. On hosts like Render, add RESEND_API_KEY (recommended) or working SMTP — Gmail SMTP often times out from the cloud.';
     return sendCreated(res, result, message);
   } catch (error) {
     next(error);

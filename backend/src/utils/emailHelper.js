@@ -2,29 +2,96 @@ import nodemailer from 'nodemailer';
 import env from '../config/Env.js';
 import logger from './Logger.js';
 
-const smtpPort = Number(env.email.port) || 587;
-const smtpSecure = smtpPort === 465;
-const hostLower = (env.email.host || '').trim().toLowerCase();
-/** Gmail’s SMTP often works better without forced requireTLS (can hang on some hosts). */
-const isGmailSmtp = hostLower.includes('gmail.com') || hostLower.includes('googlemail.com');
+function buildSmtpTransport() {
+  const smtpPort = Number(env.email.port) || 587;
+  const smtpSecure = smtpPort === 465;
+  const hostLower = (env.email.host || '').trim().toLowerCase();
+  const isGmailSmtp = hostLower.includes('gmail.com') || hostLower.includes('googlemail.com');
+  return nodemailer.createTransport({
+    pool: false,
+    host: env.email.host,
+    port: smtpPort,
+    secure: smtpSecure,
+    requireTLS: !smtpSecure && Boolean(env.email.host?.trim()) && !isGmailSmtp,
+    connectionTimeout: 15000,
+    greetingTimeout: 12000,
+    socketTimeout: 20000,
+    auth: {
+      user: env.email.user,
+      pass: env.email.pass,
+    },
+  });
+}
 
-const transporter = nodemailer.createTransport({
-  /** Fresh connection per send avoids stuck pool connections on PaaS (Render, etc.). */
-  pool: false,
-  host: env.email.host,
-  port: smtpPort,
-  secure: smtpSecure,
-  requireTLS: !smtpSecure && Boolean(env.email.host?.trim()) && !isGmailSmtp,
-  connectionTimeout: 15000,
-  greetingTimeout: 12000,
-  socketTimeout: 20000,
-  auth: {
-    user: env.email.user,
-    pass: env.email.pass,
-  },
-});
+/** Lazy SMTP transport — avoids creating a client when only Resend is used. */
+let smtpTransport;
+function getSmtpTransport() {
+  if (!smtpTransport && env.email.host?.trim()) {
+    smtpTransport = buildSmtpTransport();
+  }
+  return smtpTransport;
+}
+
+async function sendEmailViaResend({ to, subject, html }) {
+  const from = env.emailFrom || 'Salon App <onboarding@resend.dev>';
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.resendApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html,
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = body.message || body.name || `Resend HTTP ${res.status}`;
+    const err = new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    err.statusCode = res.status;
+    throw err;
+  }
+  const id = body.id || body.data?.id;
+  logger.info(`Email sent via Resend to ${to}${id ? `: ${id}` : ''}`);
+  return body;
+}
+
+/** Resend API vs SMTP — see `MAIL_PROVIDER` in Env.js / `.env.example`. */
+function useResendForSend() {
+  if (env.mailProvider === 'resend') return true;
+  if (env.mailProvider === 'smtp') return false;
+  return Boolean(env.resendApiKey);
+}
 
 const sendEmail = async ({ to, subject, html }) => {
+  if (useResendForSend()) {
+    if (!env.resendApiKey) {
+      const err = new Error(
+        'MAIL_PROVIDER=resend (or auto with Resend) requires RESEND_API_KEY. Set the key or use MAIL_PROVIDER=smtp with EMAIL_*.'
+      );
+      err.statusCode = 500;
+      throw err;
+    }
+    try {
+      return await sendEmailViaResend({ to, subject, html });
+    } catch (error) {
+      logger.error(`Failed to send email via Resend to ${to}:`, error);
+      throw error;
+    }
+  }
+
+  const transporter = getSmtpTransport();
+  if (!transporter) {
+    const err = new Error(
+      'SMTP not configured (set EMAIL_HOST + EMAIL_USER + EMAIL_PASS) or use Resend (RESEND_API_KEY + MAIL_PROVIDER=auto|resend).'
+    );
+    err.statusCode = 500;
+    throw err;
+  }
+
   const mailOptions = {
     from: `"Salon App" <${env.email.user}>`,
     to,
@@ -34,10 +101,10 @@ const sendEmail = async ({ to, subject, html }) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    logger.info(`Email sent to ${to}: ${info.messageId}`);
+    logger.info(`Email sent via SMTP to ${to}: ${info.messageId}`);
     return info;
   } catch (error) {
-    logger.error(`Failed to send email to ${to}:`, error);
+    logger.error(`Failed to send email via SMTP to ${to}:`, error);
     throw error;
   }
 };
