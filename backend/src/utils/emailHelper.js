@@ -2,16 +2,21 @@ import nodemailer from 'nodemailer';
 import env from '../config/Env.js';
 import logger from './Logger.js';
 
+const smtpPort = Number(env.email.port) || 587;
+const smtpSecure = smtpPort === 465;
+
 const transporter = nodemailer.createTransport({
   pool: true,
   maxConnections: 5,
   maxMessages: 100,
   host: env.email.host,
-  port: env.email.port,
-  secure: env.email.port === 465,
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
+  port: smtpPort,
+  secure: smtpSecure,
+  /** Port 587 expects STARTTLS; avoids some “hang then timeout” setups. */
+  requireTLS: !smtpSecure && Boolean(env.email.host?.trim()),
+  connectionTimeout: 20000,
+  greetingTimeout: 15000,
+  socketTimeout: 25000,
   auth: {
     user: env.email.user,
     pass: env.email.pass,

@@ -61,10 +61,11 @@ class AuthService {
         verificationEmailSent = true;
       } catch (err) {
         logger.error(`Failed to send verification email to ${user.email}:`, err);
-        if (env.nodeEnv === 'production') {
-          throw err;
-        }
-        logger.warn(`[dev] Skipping verification email (SMTP error). Verify URL for ${user.email}: ${verificationUrl}`);
+        verificationEmailSent = false;
+        const reason = err?.code || err?.message || 'unknown';
+        logger.warn(
+          `[auth] Verification email not delivered (${reason}). Account is still created. Verify URL for ${user.email}: ${verificationUrl}`
+        );
       }
     } else {
       logger.warn(
@@ -135,11 +136,9 @@ class AuthService {
         });
       } catch (err) {
         logger.error(`Failed to send verification email to ${user.email}:`, err);
-        if (env.nodeEnv === 'production') {
-          throw err;
-        }
+        const reason = err?.code || err?.message || 'unknown';
         logger.warn(
-          `[dev] Skipping verification email (SMTP error). Verify URL for ${user.email}: ${verificationUrl}`
+          `[auth] Resend: verification email not delivered (${reason}). Verify URL for ${user.email}: ${verificationUrl}`
         );
       }
     } else {
@@ -209,10 +208,9 @@ class AuthService {
     } catch (err) {
       await user.update({ passwordResetToken: null });
       logger.error(`Failed to send password reset email to ${user.email}:`, err);
-      if (env.nodeEnv === 'production') {
-        throw err;
+      if (env.nodeEnv !== 'production') {
+        logger.warn(`[dev] Skipping reset email (SMTP error). Reset URL for ${user.email}: ${resetUrl}`);
       }
-      logger.warn(`[dev] Skipping reset email (SMTP error). Reset URL for ${user.email}: ${resetUrl}`);
       return { ok: true };
     }
 
