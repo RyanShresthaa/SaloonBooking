@@ -297,6 +297,12 @@ export default function NewAppointmentPage() {
               error={errors.customerEmail?.message}
               {...register('customerEmail')}
             />
+            {isSalonDesk ? (
+              <p className="sm:col-span-2 text-xs text-stone-500 dark:text-stone-400">
+                If this email matches a registered customer account, the visit is saved to their dashboard. Walk-ins
+                with no account stay on the salon calendar only.
+              </p>
+            ) : null}
           </div>
 
           <Input label="Phone (optional)" type="tel" placeholder="+1 555 000 0000" {...register('customerPhone')} />

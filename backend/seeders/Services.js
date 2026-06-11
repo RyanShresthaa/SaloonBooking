@@ -2,6 +2,23 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default {
   up: async (queryInterface) => {
+    const [existingResources] = await queryInterface.sequelize.query(
+      `SELECT id FROM salon_resources WHERE "isActive" = true ORDER BY "createdAt" ASC LIMIT 1`
+    );
+    let resourceId = existingResources[0]?.id;
+    if (!resourceId) {
+      resourceId = uuidv4();
+      await queryInterface.bulkInsert('salon_resources', [
+        {
+          id: resourceId,
+          name: 'Main bay',
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+    }
+
     await queryInterface.bulkInsert('services', [
       {
         id: uuidv4(),
@@ -10,6 +27,9 @@ export default {
         duration: 30,
         price: 25.0,
         isActive: true,
+        bufferBeforeMinutes: 0,
+        bufferAfterMinutes: 0,
+        resourceId,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -20,6 +40,9 @@ export default {
         duration: 45,
         price: 35.0,
         isActive: true,
+        bufferBeforeMinutes: 0,
+        bufferAfterMinutes: 0,
+        resourceId,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -30,6 +53,9 @@ export default {
         duration: 90,
         price: 80.0,
         isActive: true,
+        bufferBeforeMinutes: 0,
+        bufferAfterMinutes: 0,
+        resourceId,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -40,6 +66,9 @@ export default {
         duration: 60,
         price: 60.0,
         isActive: true,
+        bufferBeforeMinutes: 0,
+        bufferAfterMinutes: 0,
+        resourceId,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -50,6 +79,9 @@ export default {
         duration: 45,
         price: 40.0,
         isActive: true,
+        bufferBeforeMinutes: 0,
+        bufferAfterMinutes: 0,
+        resourceId,
         createdAt: new Date(),
         updatedAt: new Date(),
       },

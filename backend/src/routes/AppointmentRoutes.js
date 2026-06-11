@@ -131,6 +131,7 @@ router.post(
       .withMessage('Start time must be in HH:MM format'),
     body('emailRemindersOptIn').optional().isBoolean().withMessage('emailRemindersOptIn must be true or false'),
     body('assignedStaffId').optional().isUUID().withMessage('assignedStaffId must be a UUID'),
+    body('customerUserId').optional().isUUID().withMessage('customerUserId must be a UUID'),
   ],
   validate,
   appointmentController.createAppointment

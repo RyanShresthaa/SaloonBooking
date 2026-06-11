@@ -12,6 +12,8 @@ export interface AppointmentPayload {
   emailRemindersOptIn?: boolean;
   assignedStaffId?: string;
   seriesId?: string;
+  /** When salon desk books for a registered customer by id (optional; otherwise server matches customer by email). */
+  customerUserId?: string;
 }
 
 export interface AppointmentUpdatePayload {

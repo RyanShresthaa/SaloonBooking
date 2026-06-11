@@ -227,6 +227,7 @@ class AppointmentService {
 
   async createAppointment({
     userId,
+    actorUserId,
     serviceId,
     customerName,
     customerEmail,
@@ -285,11 +286,11 @@ class AppointmentService {
 
     emitAppointmentUpdated({ type: 'created', appointmentId: appointment.id });
     await auditService.log({
-      actorUserId: userId,
+      actorUserId: actorUserId ?? userId,
       action: 'appointment.create',
       entityType: 'appointment',
       entityId: appointment.id,
-      metadata: { appointmentDate, startTime, serviceId },
+      metadata: { appointmentDate, startTime, serviceId, bookedForUserId: userId },
     });
 
     return appointment;

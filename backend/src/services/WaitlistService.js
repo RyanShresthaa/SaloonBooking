@@ -1,4 +1,5 @@
 import { WaitlistEntry, Service } from '../models/Index.js';
+import auditService from './AuditService.js';
 
 class WaitlistService {
   async list(userId, role) {
@@ -20,7 +21,7 @@ class WaitlistService {
       error.statusCode = 404;
       throw error;
     }
-    return WaitlistEntry.create({
+    const row = await WaitlistEntry.create({
       userId,
       serviceId,
       preferredDate: preferredDate || null,
@@ -28,6 +29,14 @@ class WaitlistService {
       notes: notes || null,
       status: 'pending',
     });
+    await auditService.log({
+      actorUserId: userId,
+      action: 'waitlist.create',
+      entityType: 'waitlist_entry',
+      entityId: row.id,
+      metadata: { serviceId, status: 'pending' },
+    });
+    return row;
   }
 
   async updateStatus(id, status, userId, role) {
@@ -59,7 +68,15 @@ class WaitlistService {
       throw error;
     }
 
+    const prevStatus = row.status;
     await row.update({ status });
+    await auditService.log({
+      actorUserId: userId,
+      action: 'waitlist.status_update',
+      entityType: 'waitlist_entry',
+      entityId: row.id,
+      metadata: { prevStatus, status },
+    });
     return row.reload({
       include: [
         { association: 'service', attributes: ['id', 'name', 'duration', 'price'] },

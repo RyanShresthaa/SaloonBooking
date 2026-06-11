@@ -1,5 +1,6 @@
 import appointmentService from '../services/AppointmentService.js';
-import { sendSuccess, sendCreated } from '../utils/apiResponse.js';
+import { User } from '../models/Index.js';
+import { sendSuccess, sendCreated, sendBadRequest } from '../utils/apiResponse.js';
 
 const exportAppointmentsCsv = async (req, res, next) => {
   try {
@@ -55,9 +56,41 @@ const getAppointment = async (req, res, next) => {
 
 const createAppointment = async (req, res, next) => {
   try {
+    const body = { ...req.body };
+    const customerUserIdRaw = body.customerUserId;
+    delete body.customerUserId;
+
+    const roleNorm = String(req.user.role || '').toLowerCase();
+    let appointmentUserId = req.user.id;
+
+    if (roleNorm === 'customer') {
+      appointmentUserId = req.user.id;
+    } else if (roleNorm === 'admin' || roleNorm === 'staff') {
+      const explicit =
+        typeof customerUserIdRaw === 'string' ? customerUserIdRaw.trim() : '';
+      if (explicit) {
+        const u = await User.findByPk(explicit, { attributes: ['id'] });
+        if (!u) {
+          return sendBadRequest(res, 'customerUserId does not match an existing account.');
+        }
+        appointmentUserId = u.id;
+      } else if (body.customerEmail) {
+        const emailNorm = String(body.customerEmail).trim().toLowerCase();
+        const customers = await User.findAll({
+          where: { email: emailNorm, role: 'customer' },
+          attributes: ['id'],
+          limit: 2,
+        });
+        if (customers.length === 1) {
+          appointmentUserId = customers[0].id;
+        }
+      }
+    }
+
     const appointment = await appointmentService.createAppointment({
-      userId: req.user.id,
-      ...req.body,
+      userId: appointmentUserId,
+      actorUserId: req.user.id,
+      ...body,
     });
     return sendCreated(res, appointment, 'Appointment created successfully');
   } catch (error) {
