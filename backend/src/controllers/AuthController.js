@@ -6,7 +6,10 @@ const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     const result = await authService.register({ name, email, password });
-    return sendCreated(res, result, 'Registration successful. Please check your email to verify your account.');
+    const message = result.verificationEmailSent
+      ? 'Registration successful. Please check your email to verify your account.'
+      : 'Registration successful. No verification email was sent from this server (SMTP not configured or invalid). Add EMAIL_HOST, EMAIL_USER, and EMAIL_PASS on Render with a real mail provider, then use Resend verification below.';
+    return sendCreated(res, result, message);
   } catch (error) {
     next(error);
   }

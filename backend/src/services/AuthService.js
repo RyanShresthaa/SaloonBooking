@@ -25,14 +25,15 @@ class AuthService {
       where: sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), emailNorm),
     });
 
-    if (existing?.isEmailVerified) {
+    // Fully registered = email verified. Unverified (or pending) accounts can complete signup again.
+    if (existing?.isEmailVerified === true) {
       const error = new Error('Email is already in use');
       error.statusCode = 400;
       throw error;
     }
 
     let user;
-    if (existing && !existing.isEmailVerified) {
+    if (existing && existing.isEmailVerified !== true) {
       const verificationToken = generateShortToken({ id: existing.id, purpose: 'email-verification' });
       await existing.update({
         name,
@@ -49,6 +50,7 @@ class AuthService {
 
     const verificationUrl = `${env.clientUrl}/verify-email?token=${user.emailVerificationToken}`;
 
+    let verificationEmailSent = false;
     if (isSmtpConfigured()) {
       try {
         await sendEmail({
@@ -56,6 +58,7 @@ class AuthService {
           subject: 'Verify your Salon App account',
           html: buildVerificationEmail(verificationUrl),
         });
+        verificationEmailSent = true;
       } catch (err) {
         logger.error(`Failed to send verification email to ${user.email}:`, err);
         if (env.nodeEnv === 'production') {
@@ -69,7 +72,7 @@ class AuthService {
       );
     }
 
-    return { id: user.id, name: user.name, email: user.email };
+    return { id: user.id, name: user.name, email: user.email, verificationEmailSent };
   }
 
   async verifyEmail(token) {
