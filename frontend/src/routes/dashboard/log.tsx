@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getNotificationLogs, markBookingNotificationFinished } from '@/lib/api/notifications';
 import { listAuditLogs, type AuditLogRow } from '@/lib/api/audit';
+import { connectSocket } from '@/lib/socket';
 import AuthGuard from '@/components/layout/AuthGuard';
 import { useAuthStore } from '@/store/authStore';
 import Button from '@/components/ui/Button';
@@ -116,7 +117,7 @@ export default function LogsPage() {
     void fetchAuditPage(0, false);
   }, [tab, auditFilter, isSalonWide, fetchAuditPage]);
 
-  const refreshLogs = () => {
+  const refreshLogs = useCallback(() => {
     getNotificationLogs()
       .then((res) => {
         setLogs(Array.isArray(res.data.data) ? res.data.data : []);
@@ -125,7 +126,50 @@ export default function LogsPage() {
       .catch((err: unknown) => {
         setError(getApiErrorMessage(err, 'Could not load logs'));
       });
-  };
+  }, []);
+
+  /** Notification rows and statuses change on the server without this page knowing — listen like the bulk-send screen. */
+  useEffect(() => {
+    const socket = connectSocket();
+    let notifTimer: ReturnType<typeof setTimeout> | undefined;
+    let auditTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const onNotificationSocket = () => {
+      if (tab !== 'notifications') return;
+      clearTimeout(notifTimer);
+      notifTimer = setTimeout(() => {
+        refreshLogs();
+      }, 400);
+    };
+
+    const onAppointmentSocket = () => {
+      if (!isSalonWide || tab !== 'audit') return;
+      clearTimeout(auditTimer);
+      auditTimer = setTimeout(() => {
+        void fetchAuditPage(0, false);
+      }, 400);
+    };
+
+    socket.on('notification:update', onNotificationSocket);
+    socket.on('appointment:updated', onAppointmentSocket);
+
+    return () => {
+      clearTimeout(notifTimer);
+      clearTimeout(auditTimer);
+      socket.off('notification:update', onNotificationSocket);
+      socket.off('appointment:updated', onAppointmentSocket);
+    };
+  }, [tab, isSalonWide, refreshLogs, fetchAuditPage]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (tab === 'notifications') refreshLogs();
+      if (tab === 'audit' && isSalonWide) void fetchAuditPage(0, false);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [tab, isSalonWide, refreshLogs, fetchAuditPage]);
 
   const handleMarkFinished = async (id: string) => {
     setFinishingId(id);
@@ -153,8 +197,8 @@ export default function LogsPage() {
             {isAdmin
               ? 'Notification sends and an audit trail of important booking changes. Both views use a clean white workspace for easier scanning.'
               : isSalonWide
-                ? 'Notification activity and audit events for the salon desk.'
-                : 'Notifications sent to your account email only.'}
+                ? 'Notification activity and audit events for the salon desk. These lists refresh when the server broadcasts updates (socket) or when you switch back to the tab.'
+                : 'Only rows where the recipient email matches the address you sign in with. The list refreshes when sends update, over the socket, or when you return to this tab.'}
           </p>
 
           {isSalonWide ? (
