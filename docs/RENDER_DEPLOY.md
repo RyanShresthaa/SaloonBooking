@@ -68,6 +68,7 @@ Add these (values from your Postgres/Redis dashboards and secrets you generate):
 | `JWT_SECRET` | Long random string (generate locally: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
 | `REDIS_URL` | Full internal Redis URL from Render |
 | `CLIENT_URL` | Your **live** SPA origin, e.g. `https://saloon-booking-virid.vercel.app` (comma-separate if you have more domains) |
+| `CORS_ALLOW_VERCEL_PREVIEWS` | Set to `1` to allow **any** `https://*.vercel.app` origin in production (needed for Vercel **preview** URLs; remove for stricter production). |
 | `STAFF_SEED_PASSWORD` | Min 6 characters (required in production for demo-staff seed button) |
 
 **Optional** (enable when you need them):

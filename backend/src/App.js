@@ -9,32 +9,19 @@ import { errorHandler, notFound } from './middlewares/ErrorMiddleware.js';
 import requestLogger from './middlewares/RequestLogMiddleware.js';
 import env from './config/Env.js';
 import { getPublicMailStatus } from './utils/emailHelper.js';
+import { isAllowedClientOrigin } from './config/corsOrigins.js';
 
 const app = express();
 
 app.use(helmet());
 
-const developmentOrigins = [
-  ...env.clientOrigins,
-  'http://localhost:3000',
-  'http://localhost:3002',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:5174',
-];
-
-const allowedOrigins = new Set(
-  env.nodeEnv === 'production' ? env.clientOrigins : developmentOrigins
-);
-
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (isAllowedClientOrigin(origin)) {
         return callback(null, true);
       }
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
+      return callback(new Error(`CORS blocked for origin: ${origin || '(none)'}`));
     },
     credentials: true,
   })

@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import env from '../config/Env.js';
 import logger from '../utils/Logger.js';
+import { socketCorsOriginOption } from '../config/corsOrigins.js';
 
 let io;
 
@@ -8,22 +9,9 @@ let io;
  * @param {http.Server} httpServer
  */
 const initSocket = (httpServer) => {
-  const socketAllowedOrigins =
-    env.nodeEnv === 'production'
-      ? env.clientOrigins
-      : [
-          ...env.clientOrigins,
-          'http://localhost:3000',
-          'http://localhost:3002',
-          'http://localhost:5173',
-          'http://127.0.0.1:5173',
-          'http://localhost:5174',
-          'http://127.0.0.1:5174',
-        ];
-
   io = new Server(httpServer, {
     cors: {
-      origin: socketAllowedOrigins,
+      origin: socketCorsOriginOption(),
       methods: ['GET', 'POST'],
     },
   });

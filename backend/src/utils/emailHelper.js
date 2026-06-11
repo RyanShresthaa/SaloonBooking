@@ -213,6 +213,7 @@ export function getPublicMailStatus() {
     smtpConfigured,
     transport,
     emailVerificationRequired: env.authEmailVerificationRequired,
+    corsAllowVercelPreviews: env.corsAllowVercelPreviews,
   };
 }
 

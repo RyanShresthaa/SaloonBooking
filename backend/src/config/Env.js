@@ -62,6 +62,12 @@ const env = {
    */
   authEmailVerificationRequired: process.env.AUTH_EMAIL_VERIFICATION_REQUIRED === '1',
 
+  /**
+   * Production only: also allow any `https://*.vercel.app` origin (preview deployments).
+   * Set CORS_ALLOW_VERCEL_PREVIEWS=1 on Render when testing from Vercel preview URLs.
+   */
+  corsAllowVercelPreviews: process.env.CORS_ALLOW_VERCEL_PREVIEWS === '1',
+
   redis: {
     url: process.env.REDIS_URL,
     host: process.env.REDIS_HOST || '127.0.0.1',
