@@ -2,6 +2,18 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+/** Comma-separated `CLIENT_URL` values → SPA origins for CORS / Socket.IO (first = primary for email links). */
+const parseClientOrigins = () => {
+  const raw = process.env.CLIENT_URL || 'http://localhost:5174';
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+};
+
+const clientOrigins = parseClientOrigins();
+const clientUrl = clientOrigins[0] || 'http://localhost:5174';
+
 const env = {
   port: parseInt(process.env.PORT, 10) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -22,6 +34,20 @@ const env = {
   email: {
     host: process.env.EMAIL_HOST,
     port: parseInt(process.env.EMAIL_PORT, 10) || 587,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+
+  redis: {
+    url: process.env.REDIS_URL,
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+  },
+
+  /** Primary SPA origin (emails, Stripe redirects). Use first entry from `CLIENT_URL`. */
+  clientUrl,
+  /** All allowed SPA origins (CORS). Set `CLIENT_URL` to one URL or comma-separated list. */
+  clientOrigins,
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },

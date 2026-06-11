@@ -4,35 +4,59 @@ import { sendEmail, buildVerificationEmail, buildPasswordResetEmail } from '../u
 import env from '../config/Env.js';
 import logger from '../utils/Logger.js';
 
+/** True when EMAIL_HOST + EMAIL_USER are set so nodemailer can send. */
+function isSmtpConfigured() {
+  return Boolean(env.email?.host?.trim() && env.email?.user?.trim());
+}
+
 class AuthService {
   async register({ name, email, password }) {
-    const existing = await User.findOne({ where: { email } });
-    if (existing) {
+    const emailNorm = (email || '').trim().toLowerCase();
+    const existing = await User.findOne({
+      where: sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), emailNorm),
+    });
+
+    if (existing?.isEmailVerified) {
       const error = new Error('Email is already in use');
       error.statusCode = 400;
       throw error;
     }
 
-    const user = await User.create({ name, email, password });
-
-    const verificationToken = generateShortToken({ id: user.id, purpose: 'email-verification' });
-    await user.update({ emailVerificationToken: verificationToken });
-
-    const verificationUrl = `${env.clientUrl}/verify-email?token=${verificationToken}`;
-
-    try {
-      await sendEmail({
-        to: email,
-        subject: 'Verify your Salon App account',
-        html: buildVerificationEmail(verificationUrl),
+    let user;
+    if (existing && !existing.isEmailVerified) {
+      const verificationToken = generateShortToken({ id: existing.id, purpose: 'email-verification' });
+      await existing.update({
+        name,
+        password,
+        emailVerificationToken: verificationToken,
       });
-    } catch (err) {
-      if (env.nodeEnv === 'production') {
-        throw err;
+      user = await existing.reload();
+    } else {
+      user = await User.create({ name, email, password });
+      const verificationToken = generateShortToken({ id: user.id, purpose: 'email-verification' });
+      await user.update({ emailVerificationToken: verificationToken });
+      await user.reload();
+    }
+
+    const verificationUrl = `${env.clientUrl}/verify-email?token=${user.emailVerificationToken}`;
+
+    if (isSmtpConfigured()) {
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Verify your Salon App account',
+          html: buildVerificationEmail(verificationUrl),
+        });
+      } catch (err) {
+        logger.error(`Failed to send verification email to ${user.email}:`, err);
+        if (env.nodeEnv === 'production') {
+          throw err;
+        }
+        logger.warn(`[dev] Skipping verification email (SMTP error). Verify URL for ${user.email}: ${verificationUrl}`);
       }
-      // Local dev: SMTP often unset — still create user; log link for testing
+    } else {
       logger.warn(
-        `[dev] Skipping verification email (SMTP error). Verify URL for ${email}: ${verificationUrl}`
+        `[auth] SMTP not configured (${env.nodeEnv}); user created without verification email. Verify URL for ${user.email}: ${verificationUrl}`
       );
     }
 
@@ -90,18 +114,25 @@ class AuthService {
 
     const verificationUrl = `${env.clientUrl}/verify-email?token=${verificationToken}`;
 
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: 'Verify your Salon App account',
-        html: buildVerificationEmail(verificationUrl),
-      });
-    } catch (err) {
-      if (env.nodeEnv === 'production') {
-        throw err;
+    if (isSmtpConfigured()) {
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Verify your Salon App account',
+          html: buildVerificationEmail(verificationUrl),
+        });
+      } catch (err) {
+        logger.error(`Failed to send verification email to ${user.email}:`, err);
+        if (env.nodeEnv === 'production') {
+          throw err;
+        }
+        logger.warn(
+          `[dev] Skipping verification email (SMTP error). Verify URL for ${user.email}: ${verificationUrl}`
+        );
       }
+    } else {
       logger.warn(
-        `[dev] Skipping verification email (SMTP error). Verify URL for ${user.email}: ${verificationUrl}`
+        `[auth] SMTP not configured; resend skipped. Verify URL for ${user.email}: ${verificationUrl}`
       );
     }
 
@@ -148,9 +179,14 @@ class AuthService {
     }
 
     const resetToken = generatePasswordResetToken({ id: user.id, purpose: 'password-reset' });
-    await user.update({ passwordResetToken: resetToken });
-
     const resetUrl = `${env.clientUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+
+    if (!isSmtpConfigured()) {
+      logger.warn('[auth] SMTP not configured; password reset email not sent.');
+      return { ok: true };
+    }
+
+    await user.update({ passwordResetToken: resetToken });
 
     try {
       await sendEmail({
@@ -160,10 +196,12 @@ class AuthService {
       });
     } catch (err) {
       await user.update({ passwordResetToken: null });
+      logger.error(`Failed to send password reset email to ${user.email}:`, err);
       if (env.nodeEnv === 'production') {
         throw err;
       }
       logger.warn(`[dev] Skipping reset email (SMTP error). Reset URL for ${user.email}: ${resetUrl}`);
+      return { ok: true };
     }
 
     return { ok: true };

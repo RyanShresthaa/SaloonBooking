@@ -50,7 +50,7 @@ router.use(authLimiter);
  *       201:
  *         description: User registered. Verification email sent.
  *       400:
- *         description: Validation error or email already in use.
+ *         description: Validation error, or verified email already in use (unverified duplicates complete signup instead).
  */
 router.post(
   '/register',

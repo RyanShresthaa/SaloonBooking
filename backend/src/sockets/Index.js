@@ -10,9 +10,9 @@ let io;
 const initSocket = (httpServer) => {
   const socketAllowedOrigins =
     env.nodeEnv === 'production'
-      ? env.clientUrl
+      ? env.clientOrigins
       : [
-          env.clientUrl,
+          ...env.clientOrigins,
           'http://localhost:3000',
           'http://localhost:3002',
           'http://localhost:5173',

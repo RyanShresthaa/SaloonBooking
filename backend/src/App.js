@@ -14,7 +14,7 @@ const app = express();
 app.use(helmet());
 
 const developmentOrigins = [
-  env.clientUrl,
+  ...env.clientOrigins,
   'http://localhost:3000',
   'http://localhost:3002',
   'http://localhost:5173',
@@ -24,7 +24,7 @@ const developmentOrigins = [
 ];
 
 const allowedOrigins = new Set(
-  env.nodeEnv === 'production' ? [env.clientUrl] : developmentOrigins
+  env.nodeEnv === 'production' ? env.clientOrigins : developmentOrigins
 );
 
 app.use(
