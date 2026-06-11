@@ -212,6 +212,7 @@ export function getPublicMailStatus() {
     emailFromConfigured: Boolean(env.emailFrom),
     smtpConfigured,
     transport,
+    emailVerificationRequired: env.authEmailVerificationRequired,
   };
 }
 

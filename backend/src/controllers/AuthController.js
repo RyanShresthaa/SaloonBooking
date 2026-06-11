@@ -1,14 +1,17 @@
 import authService from '../services/AuthService.js';
 import { User, Appointment } from '../models/Index.js';
 import { sendSuccess, sendCreated, sendBadRequest } from '../utils/apiResponse.js';
+import env from '../config/Env.js';
 
 const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     const result = await authService.register({ name, email, password });
-    const message = result.verificationEmailQueued
-      ? 'Registration successful. A verification email is being sent — check your inbox and spam in the next minute.'
-      : 'Registration successful. No verification email was scheduled. On hosts like Render, add RESEND_API_KEY (recommended) or working SMTP — Gmail SMTP often times out from the cloud.';
+    const message = result.emailVerificationSkipped
+      ? 'Registration successful. You can sign in now.'
+      : result.verificationEmailQueued
+        ? 'Registration successful. A verification email is being sent — check your inbox and spam in the next minute.'
+        : 'Registration successful. No verification email was scheduled. On hosts like Render, add RESEND_API_KEY (recommended) or working SMTP — Gmail SMTP often times out from the cloud.';
     return sendCreated(res, result, message);
   } catch (error) {
     next(error);
@@ -17,6 +20,13 @@ const register = async (req, res, next) => {
 
 const verifyEmail = async (req, res, next) => {
   try {
+    if (!env.authEmailVerificationRequired) {
+      return sendSuccess(
+        res,
+        null,
+        'Email verification is not required on this server. Sign in with your password.'
+      );
+    }
     const { token } = req.query;
     if (!token) return sendBadRequest(res, 'Verification token is required');
     await authService.verifyEmail(token);

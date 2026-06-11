@@ -24,13 +24,14 @@ type RegisterPayload = {
   email: string;
   verificationEmailSent?: boolean;
   verificationEmailQueued?: boolean;
+  emailVerificationSkipped?: boolean;
 };
 
 export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
-  /** true = API confirmed send; 'queued' = sending in background; false = no mail path */
-  const [emailDispatch, setEmailDispatch] = useState<'sent' | 'queued' | 'none'>('sent');
+  /** sent | queued | none = verification mail paths; immediate = verification disabled, can sign in */
+  const [emailDispatch, setEmailDispatch] = useState<'sent' | 'queued' | 'none' | 'immediate'>('sent');
   const [serverError, setServerError] = useState('');
 
   const {
@@ -44,7 +45,9 @@ export default function RegisterPage() {
     try {
       const res = await registerUser(data);
       const payload = res.data?.data as RegisterPayload | undefined;
-      if (payload?.verificationEmailSent === true) setEmailDispatch('sent');
+      if (payload?.emailVerificationSkipped) {
+        setEmailDispatch('immediate');
+      } else if (payload?.verificationEmailSent === true) setEmailDispatch('sent');
       else if (payload?.verificationEmailQueued) setEmailDispatch('queued');
       else setEmailDispatch('none');
       setRegisteredEmail(data.email.trim());
@@ -60,9 +63,19 @@ export default function RegisterPage() {
         <div className="surface-card rounded-lg px-8 py-12">
           <CheckCircle className="mx-auto mb-4 h-11 w-11 text-emerald-700" strokeWidth={1.25} />
           <h2 className="text-2xl text-stone-900">
-            {emailDispatch === 'none' ? 'Almost there' : 'Check your inbox'}
+            {emailDispatch === 'immediate'
+              ? "You're all set"
+              : emailDispatch === 'none'
+                ? 'Almost there'
+                : 'Check your inbox'}
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-stone-600">
+            {emailDispatch === 'immediate' && (
+              <>
+                Your customer account is active — no email verification step on this server. Sign in with the email
+                and password you just used.
+              </>
+            )}
             {emailDispatch === 'sent' && (
               <>
                 We sent a verification link. Open it on this device when you are ready to activate the account.
@@ -86,9 +99,11 @@ export default function RegisterPage() {
               </>
             )}
           </p>
-          <div className="mt-8 rounded-md border border-stone-200 bg-stone-50/80 px-4 py-4 text-left">
-            <ResendVerificationBlock lockedEmail={registeredEmail} />
-          </div>
+          {emailDispatch !== 'immediate' && (
+            <div className="mt-8 rounded-md border border-stone-200 bg-stone-50/80 px-4 py-4 text-left">
+              <ResendVerificationBlock lockedEmail={registeredEmail} />
+            </div>
+          )}
           <Link to="/login" className="link-quiet mt-8 inline-block text-sm font-semibold">
             Back to sign in
           </Link>

@@ -1,6 +1,7 @@
 import { verifyToken } from '../utils/tokenHelper.js';
 import { sendUnauthorized, sendForbidden } from '../utils/apiResponse.js';
 import { User } from '../models/Index.js';
+import env from '../config/Env.js';
 
 const authenticate = async (req, res, next) => {
   try {
@@ -21,7 +22,7 @@ const authenticate = async (req, res, next) => {
       return sendUnauthorized(res, 'User no longer exists');
     }
 
-    if (!user.isEmailVerified) {
+    if (env.authEmailVerificationRequired && !user.isEmailVerified) {
       return sendForbidden(res, 'Please verify your email before accessing this resource');
     }
 

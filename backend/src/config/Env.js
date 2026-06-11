@@ -55,6 +55,13 @@ const env = {
   resendApiKey: process.env.RESEND_API_KEY?.trim(),
   emailFrom: process.env.EMAIL_FROM?.trim(),
 
+  /**
+   * When true, registration sends verification mail and login/API require verified email.
+   * Default false: new customers are verified immediately (no email verification flow).
+   * Re-enable with AUTH_EMAIL_VERIFICATION_REQUIRED=1
+   */
+  authEmailVerificationRequired: process.env.AUTH_EMAIL_VERIFICATION_REQUIRED === '1',
+
   redis: {
     url: process.env.REDIS_URL,
     host: process.env.REDIS_HOST || '127.0.0.1',

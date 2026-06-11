@@ -43,6 +43,41 @@ class AuthService {
       where: sequelize.where(sequelize.fn('LOWER', sequelize.col('email')), emailNorm),
     });
 
+    if (!env.authEmailVerificationRequired) {
+      if (existing?.isEmailVerified === true) {
+        const error = new Error('Email is already in use');
+        error.statusCode = 400;
+        throw error;
+      }
+      let user;
+      if (existing) {
+        await existing.update({
+          name,
+          password,
+          isEmailVerified: true,
+          emailVerificationToken: null,
+        });
+        user = await existing.reload();
+      } else {
+        user = await User.create({
+          name,
+          email,
+          password,
+          isEmailVerified: true,
+          emailVerificationToken: null,
+        });
+      }
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        emailVerificationSkipped: true,
+        verificationEmailSent: false,
+        verificationEmailQueued: false,
+      };
+    }
+
+    // --- Email verification flow (AUTH_EMAIL_VERIFICATION_REQUIRED=1) ---
     // Fully registered = email verified. Unverified (or pending) accounts can complete signup again.
     if (existing?.isEmailVerified === true) {
       const error = new Error('Email is already in use');
@@ -98,6 +133,7 @@ class AuthService {
       id: user.id,
       name: user.name,
       email: user.email,
+      emailVerificationSkipped: false,
       verificationEmailSent,
       verificationEmailQueued,
     };
@@ -136,6 +172,9 @@ class AuthService {
    * Resend verification link. Same response whether user exists / is verified (no email enumeration).
    */
   async resendVerificationEmail({ email }) {
+    if (!env.authEmailVerificationRequired) {
+      return { ok: true };
+    }
     const emailNorm = (email || '').trim().toLowerCase();
     if (!emailNorm) {
       return { ok: true };
@@ -290,7 +329,7 @@ class AuthService {
       throw error;
     }
 
-    if (!user.isEmailVerified) {
+    if (env.authEmailVerificationRequired && !user.isEmailVerified) {
       const error = new Error('Please verify your email before logging in');
       error.statusCode = 403;
       throw error;

@@ -10,7 +10,7 @@ describe('Public HTTP', () => {
     assert.equal(res.body.success, true);
     assert.ok(typeof res.body.mail === 'object');
     assert.ok(typeof res.body.mail.resendConfigured === 'boolean');
-    assert.ok(typeof res.body.mail.transport === 'string');
+    assert.ok(typeof res.body.mail.emailVerificationRequired === 'boolean');
   });
 
   test('GET /api/meta/features returns flags', async () => {
