@@ -1,11 +1,34 @@
 import axios from 'axios';
 
+function isLoopbackOrLocalhostUrl(url: string): boolean {
+  try {
+    const withProto = /^[a-z]+:\/\//i.test(url) ? url : `http://${url}`;
+    const { hostname } = new URL(withProto);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
 /** Ensure requests hit `/api/...` even when VITE_API_URL is only the origin (common misconfig). */
 function normalizeApiBaseUrl(raw: string | undefined): string {
-  const fallback = 'http://localhost:5000/api';
-  const trimmed = (raw?.trim() || fallback).replace(/\/+$/, '');
-  if (trimmed.endsWith('/api')) return trimmed;
-  return `${trimmed}/api`;
+  const trimmed = raw?.trim();
+  if (trimmed) {
+    if (import.meta.env.PROD && isLoopbackOrLocalhostUrl(trimmed)) {
+      throw new Error(
+        'VITE_API_URL must be a public API URL in production (not localhost). Set it in Vercel → Settings → Environment Variables, then redeploy.',
+      );
+    }
+    const t = trimmed.replace(/\/+$/, '');
+    if (t.endsWith('/api')) return t;
+    return `${t}/api`;
+  }
+  if (import.meta.env.PROD) {
+    throw new Error(
+      'Missing VITE_API_URL. In Vercel: Project → Settings → Environment Variables → add VITE_API_URL (e.g. https://your-api.onrender.com/api), then redeploy the frontend.',
+    );
+  }
+  return 'http://localhost:5000/api';
 }
 
 const api = axios.create({
@@ -37,7 +60,7 @@ api.interceptors.response.use(
       window.location.href = '/login';
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

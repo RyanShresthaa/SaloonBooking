@@ -18,9 +18,19 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+type RegisterPayload = {
+  id: string;
+  name: string;
+  email: string;
+  verificationEmailSent?: boolean;
+  verificationEmailQueued?: boolean;
+};
+
 export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState('');
+  /** true = API confirmed send; 'queued' = sending in background; false = no mail path */
+  const [emailDispatch, setEmailDispatch] = useState<'sent' | 'queued' | 'none'>('sent');
   const [serverError, setServerError] = useState('');
 
   const {
@@ -32,7 +42,11 @@ export default function RegisterPage() {
   const onSubmit = async (data: FormData) => {
     setServerError('');
     try {
-      await registerUser(data);
+      const res = await registerUser(data);
+      const payload = res.data?.data as RegisterPayload | undefined;
+      if (payload?.verificationEmailSent === true) setEmailDispatch('sent');
+      else if (payload?.verificationEmailQueued) setEmailDispatch('queued');
+      else setEmailDispatch('none');
       setRegisteredEmail(data.email.trim());
       setSuccess(true);
     } catch (error: unknown) {
@@ -45,9 +59,32 @@ export default function RegisterPage() {
       <div className="w-full max-w-md text-center">
         <div className="surface-card rounded-lg px-8 py-12">
           <CheckCircle className="mx-auto mb-4 h-11 w-11 text-emerald-700" strokeWidth={1.25} />
-          <h2 className="text-2xl text-stone-900">Check your inbox</h2>
+          <h2 className="text-2xl text-stone-900">
+            {emailDispatch === 'none' ? 'Almost there' : 'Check your inbox'}
+          </h2>
           <p className="mt-3 text-sm leading-relaxed text-stone-600">
-            We sent a verification link. Open it on this device when you are ready to activate the account.
+            {emailDispatch === 'sent' && (
+              <>
+                We sent a verification link. Open it on this device when you are ready to activate the account.
+              </>
+            )}
+            {emailDispatch === 'queued' && (
+              <>
+                Your account is ready and a verification email is being sent in the background (usually within a
+                minute). Check spam as well. If nothing arrives, use &quot;Resend verification&quot; below after a
+                short wait — and confirm the API host has correct Gmail App Password or SMTP settings in its
+                environment.
+              </>
+            )}
+            {emailDispatch === 'none' && (
+              <>
+                Your account was created, but this server did not schedule email (SMTP is not configured on the host,
+                e.g. Render without <code className="rounded bg-stone-200 px-1">EMAIL_HOST</code>). Set the same{' '}
+                <code className="rounded bg-stone-200 px-1">EMAIL_*</code> variables on the API service as in your
+                local <code className="rounded bg-stone-200 px-1">.env</code>, redeploy, then use &quot;Resend
+                verification&quot;. Until then, use the verify link from server logs.
+              </>
+            )}
           </p>
           <div className="mt-8 rounded-md border border-stone-200 bg-stone-50/80 px-4 py-4 text-left">
             <ResendVerificationBlock lockedEmail={registeredEmail} />

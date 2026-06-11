@@ -18,6 +18,21 @@ Add **`entrypoint`** (and usually **`framework`**) for every service. Prefer the
 
 Remove stale multi-service config or deploy a commit whose `vercel.json` matches the layout above.
 
+### Vercel: browser still calls `localhost:5000` (CORS / loopback / `ERR_FAILED`)
+
+Browsers **block** an `https://…` site from calling `http://localhost:5000`. Fixing that is **not** a CORS tweak—it means the **built** app never received public API URLs.
+
+1. **Vite only inlines names that start with `VITE_`.** `PORT`, `DB_HOST`, `JWT_SECRET`, etc. from your backend `.env` are **ignored** by the frontend bundle. Pasting a whole `.env` into one Vercel field does **not** create separate variables—you must add each name yourself in **Project → Settings → Environment Variables**.
+2. **Add exactly these for Production** (values = your real deployed API, HTTPS):
+   - `VITE_API_URL` → e.g. `https://api.yourhost.com/api`
+   - `VITE_SOCKET_URL` → e.g. `https://api.yourhost.com` (same origin as the API, **no** `/api`)
+3. **Redeploy** after saving (Environment Variables apply at **build** time for Vite). “Redeploy” an old deployment without a new build may still ship a bundle that points at localhost.
+4. On the **API** server, set `CLIENT_URL` to your live SPA origin (e.g. `https://saloon-booking-virid.vercel.app`) so CORS allows the browser.
+
+On Vercel, `npm run build` will **fail** with a clear error if `VERCEL=1` and those two variables are missing or still localhost (`frontend/vite.config.ts`).
+
+**Deploy the API (Postgres + Redis + Web Service) on Render:** see [`docs/RENDER_DEPLOY.md`](./RENDER_DEPLOY.md).
+
 ## Database backups
 
 - **Postgres**: schedule nightly `pg_dump` (or your host’s automated backups) and retain at least 7 daily + 4 weekly copies.

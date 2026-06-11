@@ -51,29 +51,38 @@ class AuthService {
     const verificationUrl = `${env.clientUrl}/verify-email?token=${user.emailVerificationToken}`;
 
     let verificationEmailSent = false;
+    let verificationEmailQueued = false;
     if (isSmtpConfigured()) {
-      try {
-        await sendEmail({
-          to: user.email,
-          subject: 'Verify your Salon App account',
-          html: buildVerificationEmail(verificationUrl),
+      /** Do not await SMTP — avoids 15–25s UI freezes when Gmail/network is slow or timing out. */
+      verificationEmailQueued = true;
+      void sendEmail({
+        to: user.email,
+        subject: 'Verify your Salon App account',
+        html: buildVerificationEmail(verificationUrl),
+      })
+        .then(() => {
+          logger.info(`[auth] Verification email sent to ${user.email}`);
+        })
+        .catch((err) => {
+          logger.error(`Failed to send verification email to ${user.email}:`, err);
+          const reason = err?.code || err?.message || 'unknown';
+          logger.warn(
+            `[auth] Verification email not delivered (${reason}). Verify URL for ${user.email}: ${verificationUrl}`
+          );
         });
-        verificationEmailSent = true;
-      } catch (err) {
-        logger.error(`Failed to send verification email to ${user.email}:`, err);
-        verificationEmailSent = false;
-        const reason = err?.code || err?.message || 'unknown';
-        logger.warn(
-          `[auth] Verification email not delivered (${reason}). Account is still created. Verify URL for ${user.email}: ${verificationUrl}`
-        );
-      }
     } else {
       logger.warn(
         `[auth] SMTP not configured (${env.nodeEnv}); user created without verification email. Verify URL for ${user.email}: ${verificationUrl}`
       );
     }
 
-    return { id: user.id, name: user.name, email: user.email, verificationEmailSent };
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      verificationEmailSent,
+      verificationEmailQueued,
+    };
   }
 
   async verifyEmail(token) {
@@ -128,19 +137,19 @@ class AuthService {
     const verificationUrl = `${env.clientUrl}/verify-email?token=${verificationToken}`;
 
     if (isSmtpConfigured()) {
-      try {
-        await sendEmail({
-          to: user.email,
-          subject: 'Verify your Salon App account',
-          html: buildVerificationEmail(verificationUrl),
+      void sendEmail({
+        to: user.email,
+        subject: 'Verify your Salon App account',
+        html: buildVerificationEmail(verificationUrl),
+      })
+        .then(() => logger.info(`[auth] Resend: verification email sent to ${user.email}`))
+        .catch((err) => {
+          logger.error(`Failed to send verification email to ${user.email}:`, err);
+          const reason = err?.code || err?.message || 'unknown';
+          logger.warn(
+            `[auth] Resend: verification email not delivered (${reason}). Verify URL for ${user.email}: ${verificationUrl}`
+          );
         });
-      } catch (err) {
-        logger.error(`Failed to send verification email to ${user.email}:`, err);
-        const reason = err?.code || err?.message || 'unknown';
-        logger.warn(
-          `[auth] Resend: verification email not delivered (${reason}). Verify URL for ${user.email}: ${verificationUrl}`
-        );
-      }
     } else {
       logger.warn(
         `[auth] SMTP not configured; resend skipped. Verify URL for ${user.email}: ${verificationUrl}`
@@ -199,20 +208,19 @@ class AuthService {
 
     await user.update({ passwordResetToken: resetToken });
 
-    try {
-      await sendEmail({
-        to: user.email,
-        subject: 'Reset your Salon password',
-        html: buildPasswordResetEmail(resetUrl),
+    void sendEmail({
+      to: user.email,
+      subject: 'Reset your Salon password',
+      html: buildPasswordResetEmail(resetUrl),
+    })
+      .then(() => logger.info(`[auth] Password reset email sent to ${user.email}`))
+      .catch(async (err) => {
+        await user.update({ passwordResetToken: null });
+        logger.error(`Failed to send password reset email to ${user.email}:`, err);
+        if (env.nodeEnv !== 'production') {
+          logger.warn(`[dev] Skipping reset email (SMTP error). Reset URL for ${user.email}: ${resetUrl}`);
+        }
       });
-    } catch (err) {
-      await user.update({ passwordResetToken: null });
-      logger.error(`Failed to send password reset email to ${user.email}:`, err);
-      if (env.nodeEnv !== 'production') {
-        logger.warn(`[dev] Skipping reset email (SMTP error). Reset URL for ${user.email}: ${resetUrl}`);
-      }
-      return { ok: true };
-    }
 
     return { ok: true };
   }

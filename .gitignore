@@ -9,3 +9,8 @@ Desktop.ini
 
 # Logs at repo root (if any)
 *.log
+
+# Local env at repo root (if you keep a combined .env here)
+.env
+.env.local
+.env.*.local

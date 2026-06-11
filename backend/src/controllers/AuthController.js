@@ -6,9 +6,9 @@ const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     const result = await authService.register({ name, email, password });
-    const message = result.verificationEmailSent
-      ? 'Registration successful. Please check your email to verify your account.'
-      : 'Registration successful. No verification email was delivered (SMTP missing, wrong credentials, connection timeout, or blocked port). Check Render logs, fix EMAIL_* or try port 465 vs 587, then use Resend verification below.';
+    const message = result.verificationEmailQueued
+      ? 'Registration successful. A verification email is being sent — check your inbox and spam in the next minute.'
+      : 'Registration successful. No verification email was scheduled (SMTP not configured on the server). Add EMAIL_HOST, EMAIL_USER, and EMAIL_PASS on the API host (e.g. Render), then use Resend verification.';
     return sendCreated(res, result, message);
   } catch (error) {
     next(error);

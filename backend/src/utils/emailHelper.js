@@ -4,19 +4,20 @@ import logger from './Logger.js';
 
 const smtpPort = Number(env.email.port) || 587;
 const smtpSecure = smtpPort === 465;
+const hostLower = (env.email.host || '').trim().toLowerCase();
+/** Gmail’s SMTP often works better without forced requireTLS (can hang on some hosts). */
+const isGmailSmtp = hostLower.includes('gmail.com') || hostLower.includes('googlemail.com');
 
 const transporter = nodemailer.createTransport({
-  pool: true,
-  maxConnections: 5,
-  maxMessages: 100,
+  /** Fresh connection per send avoids stuck pool connections on PaaS (Render, etc.). */
+  pool: false,
   host: env.email.host,
   port: smtpPort,
   secure: smtpSecure,
-  /** Port 587 expects STARTTLS; avoids some “hang then timeout” setups. */
-  requireTLS: !smtpSecure && Boolean(env.email.host?.trim()),
-  connectionTimeout: 20000,
-  greetingTimeout: 15000,
-  socketTimeout: 25000,
+  requireTLS: !smtpSecure && Boolean(env.email.host?.trim()) && !isGmailSmtp,
+  connectionTimeout: 15000,
+  greetingTimeout: 12000,
+  socketTimeout: 20000,
   auth: {
     user: env.email.user,
     pass: env.email.pass,
