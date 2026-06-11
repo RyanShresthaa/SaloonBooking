@@ -4,9 +4,18 @@ import { sendEmail, buildVerificationEmail, buildPasswordResetEmail } from '../u
 import env from '../config/Env.js';
 import logger from '../utils/Logger.js';
 
-/** True when EMAIL_HOST + EMAIL_USER are set so nodemailer can send. */
+/** Hosts that look "configured" in .env but cannot receive mail on cloud hosts (e.g. Render). */
+function isLoopbackSmtpHost(host) {
+  const h = (host || '').trim().toLowerCase();
+  return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '0.0.0.0';
+}
+
+/** True when EMAIL_HOST + EMAIL_USER look like a real remote SMTP setup. */
 function isSmtpConfigured() {
-  return Boolean(env.email?.host?.trim() && env.email?.user?.trim());
+  const host = env.email?.host?.trim();
+  const user = env.email?.user?.trim();
+  if (!host || !user || isLoopbackSmtpHost(host)) return false;
+  return true;
 }
 
 class AuthService {

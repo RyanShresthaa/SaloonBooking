@@ -48,18 +48,6 @@ const env = {
   clientUrl,
   /** All allowed SPA origins (CORS). Set `CLIENT_URL` to one URL or comma-separated list. */
   clientOrigins,
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-
-  redis: {
-    url: process.env.REDIS_URL,
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    port: parseInt(process.env.REDIS_PORT, 10) || 6379,
-  },
-
-  // Links in emails (verify, reset, etc.). Default matches Vite dev server.
-  clientUrl: process.env.CLIENT_URL || 'http://localhost:5174',
 
   /**
    * Used by POST /api/staff/team/seed-demo (min 6 chars after trim).
