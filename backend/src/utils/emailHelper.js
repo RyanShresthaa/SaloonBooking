@@ -191,6 +191,30 @@ const buildAppointmentReminder24hHtml = ({ customerName, serviceName, date, time
   `;
 };
 
+/**
+ * Safe for /health — no secrets. Shows whether Resend/SMTP env looks configured and which transport sendEmail() will use.
+ */
+export function getPublicMailStatus() {
+  const host = env.email?.host?.trim();
+  const user = env.email?.user?.trim();
+  const h = (host || '').toLowerCase();
+  const loopback = h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '0.0.0.0';
+  const smtpConfigured = Boolean(host && user && !loopback);
+  const resendConfigured = Boolean(env.resendApiKey);
+  let transport;
+  if (env.mailProvider === 'resend') transport = resendConfigured ? 'resend' : 'none';
+  else if (env.mailProvider === 'smtp') transport = smtpConfigured ? 'smtp' : 'none';
+  else transport = resendConfigured ? 'resend' : smtpConfigured ? 'smtp' : 'none';
+
+  return {
+    mailProvider: env.mailProvider,
+    resendConfigured,
+    emailFromConfigured: Boolean(env.emailFrom),
+    smtpConfigured,
+    transport,
+  };
+}
+
 export {
   sendEmail,
   buildVerificationEmail,

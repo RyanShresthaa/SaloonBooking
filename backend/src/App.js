@@ -8,6 +8,7 @@ import routes from './routes/Index.js';
 import { errorHandler, notFound } from './middlewares/ErrorMiddleware.js';
 import requestLogger from './middlewares/RequestLogMiddleware.js';
 import env from './config/Env.js';
+import { getPublicMailStatus } from './utils/emailHelper.js';
 
 const app = express();
 
@@ -58,7 +59,12 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api', routes);
 
 app.get('/health', (req, res) => {
-  res.json({ success: true, message: 'Server is running', timestamp: new Date().toISOString() });
+  res.json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    mail: getPublicMailStatus(),
+  });
 });
 
 app.use(notFound);

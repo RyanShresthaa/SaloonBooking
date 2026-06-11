@@ -8,6 +8,9 @@ describe('Public HTTP', () => {
     const res = await request(app).get('/health');
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
+    assert.ok(typeof res.body.mail === 'object');
+    assert.ok(typeof res.body.mail.resendConfigured === 'boolean');
+    assert.ok(typeof res.body.mail.transport === 'string');
   });
 
   test('GET /api/meta/features returns flags', async () => {
