@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { VisitFeedback, Appointment } from '../models/Index.js';
+import { VisitFeedback, Appointment, User } from '../models/Index.js';
 
 const feedbackInclude = [
   { association: 'appointment', include: [{ association: 'service', attributes: ['name'] }] },
@@ -18,16 +18,38 @@ class VisitFeedbackService {
     if (!appointment || appointment.status === 'cancelled') return false;
     if (appointment.status === 'completed') return true;
     if (appointment.status !== 'pending' && appointment.status !== 'confirmed') return false;
+    const todayStr = dayjs().format('YYYY-MM-DD');
+    const apptDateStr = dayjs(appointment.appointmentDate).format('YYYY-MM-DD');
+    if (apptDateStr < todayStr) return true;
     const endStr = formatTimeForParse(appointment.endTime);
-    const visitEnd = dayjs(`${appointment.appointmentDate} ${endStr}`);
+    const visitEnd = dayjs(`${apptDateStr} ${endStr}`);
     return !dayjs().isBefore(visitEnd);
   }
 
-  async list(userId, role) {
+  /** Booking may be tied to salon desk userId but customerEmail matches the guest account. */
+  async _customerOwnsAppointment(userId, appointment) {
+    if (appointment.userId === userId) return true;
+    const customer = await User.findByPk(userId, { attributes: ['email'] });
+    const u = customer?.email?.trim().toLowerCase();
+    const a = String(appointment.customerEmail || '')
+      .trim()
+      .toLowerCase();
+    return Boolean(u && a && u === a);
+  }
+
+  async list(userId, role, salonId = null) {
     const salonWide = role === 'admin' || role === 'staff';
-    if (salonWide) {
+    if (salonWide && salonId) {
       return VisitFeedback.findAll({
-        include: feedbackInclude,
+        include: [
+          {
+            association: 'appointment',
+            where: { salonId },
+            required: true,
+            include: [{ association: 'service', attributes: ['name'] }],
+          },
+          { association: 'user', attributes: ['id', 'name', 'email'] },
+        ],
         order: [['createdAt', 'DESC']],
         limit: 100,
       });
@@ -46,7 +68,7 @@ class VisitFeedbackService {
       error.statusCode = 404;
       throw error;
     }
-    if (appointment.userId !== userId) {
+    if (!(await this._customerOwnsAppointment(userId, appointment))) {
       const error = new Error('You can only leave feedback for your own visits');
       error.statusCode = 403;
       throw error;

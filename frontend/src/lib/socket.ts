@@ -27,6 +27,10 @@ function resolveSocketOrigin(): string {
       'Missing VITE_SOCKET_URL. Set it to your deployed API origin (e.g. https://your-api.onrender.com), then redeploy the frontend.',
     );
   }
+  /** Match the Vite dev server origin so `/socket.io` is proxied to the API (see `vite.config.ts`). */
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
   return 'http://localhost:5000';
 }
 

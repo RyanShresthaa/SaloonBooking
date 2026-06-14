@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getNotificationLogs, markBookingNotificationFinished } from '@/lib/api/notifications';
 import { listAuditLogs, type AuditLogRow } from '@/lib/api/audit';
 import { connectSocket } from '@/lib/socket';
@@ -7,6 +7,21 @@ import { useAuthStore } from '@/store/authStore';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
+
+// ─── Constants ───
+
+const AUDIT_PAGE_SIZE = 40;
+const SOCKET_REFRESH_DEBOUNCE_MS = 400;
+
+const PANEL_CLASS =
+  'overflow-hidden rounded-[var(--radius-card)] border border-stone-200/90 bg-[#fdfcfa] shadow-[var(--shadow-card)] dark:border-stone-700 dark:bg-stone-900';
+
+const THEAD_CLASS = 'data-table-head data-table-head--sticky';
+
+const ROW_CLASS =
+  'border-b border-stone-200/60 bg-[#fdfcfa] transition-colors hover:bg-[#f4efe8] last:border-b-0 dark:border-stone-800/80 dark:bg-stone-900 dark:hover:bg-stone-800/60';
+
+// ─── Types ───
 
 interface NotificationLogRow {
   id: string;
@@ -34,14 +49,7 @@ interface NotificationLogRow {
 
 type TabId = 'notifications' | 'audit';
 
-const panelClass =
-  'overflow-hidden rounded-xl border border-stone-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-stone-700 dark:bg-stone-900 dark:shadow-none';
-
-const theadClass =
-  'border-b border-stone-200 bg-stone-100 text-left text-xs font-semibold uppercase tracking-[0.08em] text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300';
-
-const rowClass =
-  'border-b border-stone-100 bg-white transition-colors hover:bg-stone-50/90 last:border-b-0 dark:border-stone-800/80 dark:bg-stone-900 dark:hover:bg-stone-800/60';
+// ─── Exports ───
 
 export default function LogsPage() {
   const { user } = useAuthStore();
@@ -61,7 +69,9 @@ export default function LogsPage() {
   const [auditError, setAuditError] = useState('');
   const [auditFilter, setAuditFilter] = useState('');
   const [auditHasMore, setAuditHasMore] = useState(false);
-  const pageSize = 40;
+
+  const refreshLogsRef = useRef(() => {});
+  const fetchAuditPageRef = useRef<(offset: number, append: boolean) => Promise<void>>(async () => {});
 
   useEffect(() => {
     let cancelled = false;
@@ -92,7 +102,7 @@ export default function LogsPage() {
       setAuditLoading(true);
       try {
         const res = await listAuditLogs({
-          limit: pageSize,
+          limit: AUDIT_PAGE_SIZE,
           offset,
           entityType: auditFilter.trim() || undefined,
         });
@@ -102,20 +112,19 @@ export default function LogsPage() {
         } else {
           setAuditRows(rows);
         }
-        setAuditHasMore(rows.length === pageSize);
+        setAuditHasMore(rows.length === AUDIT_PAGE_SIZE);
       } catch (e: unknown) {
         setAuditError(getApiErrorMessage(e, 'Could not load audit trail.'));
       } finally {
         setAuditLoading(false);
       }
     },
-    [isSalonWide, auditFilter, pageSize]
+    [isSalonWide, auditFilter],
   );
 
   useEffect(() => {
-    if (tab !== 'audit' || !isSalonWide) return;
-    void fetchAuditPage(0, false);
-  }, [tab, auditFilter, isSalonWide, fetchAuditPage]);
+    fetchAuditPageRef.current = fetchAuditPage;
+  }, [fetchAuditPage]);
 
   const refreshLogs = useCallback(() => {
     getNotificationLogs()
@@ -128,7 +137,17 @@ export default function LogsPage() {
       });
   }, []);
 
-  /** Notification rows and statuses change on the server without this page knowing — listen like the bulk-send screen. */
+  useEffect(() => {
+    refreshLogsRef.current = refreshLogs;
+  }, [refreshLogs]);
+
+  useEffect(() => {
+    if (tab !== 'audit' || !isSalonWide) return;
+    queueMicrotask(() => {
+      void fetchAuditPage(0, false);
+    });
+  }, [tab, auditFilter, isSalonWide, fetchAuditPage]);
+
   useEffect(() => {
     const socket = connectSocket();
     let notifTimer: ReturnType<typeof setTimeout> | undefined;
@@ -138,16 +157,16 @@ export default function LogsPage() {
       if (tab !== 'notifications') return;
       clearTimeout(notifTimer);
       notifTimer = setTimeout(() => {
-        refreshLogs();
-      }, 400);
+        refreshLogsRef.current();
+      }, SOCKET_REFRESH_DEBOUNCE_MS);
     };
 
     const onAppointmentSocket = () => {
       if (!isSalonWide || tab !== 'audit') return;
       clearTimeout(auditTimer);
       auditTimer = setTimeout(() => {
-        void fetchAuditPage(0, false);
-      }, 400);
+        void fetchAuditPageRef.current(0, false);
+      }, SOCKET_REFRESH_DEBOUNCE_MS);
     };
 
     socket.on('notification:update', onNotificationSocket);
@@ -159,17 +178,17 @@ export default function LogsPage() {
       socket.off('notification:update', onNotificationSocket);
       socket.off('appointment:updated', onAppointmentSocket);
     };
-  }, [tab, isSalonWide, refreshLogs, fetchAuditPage]);
+  }, [tab, isSalonWide]);
 
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      if (tab === 'notifications') refreshLogs();
-      if (tab === 'audit' && isSalonWide) void fetchAuditPage(0, false);
+      if (tab === 'notifications') refreshLogsRef.current();
+      if (tab === 'audit' && isSalonWide) void fetchAuditPageRef.current(0, false);
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [tab, isSalonWide, refreshLogs, fetchAuditPage]);
+  }, [tab, isSalonWide]);
 
   const handleMarkFinished = async (id: string) => {
     setFinishingId(id);
@@ -189,21 +208,23 @@ export default function LogsPage() {
 
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-6xl space-y-6 pb-10">
-        <div className="rounded-xl border border-stone-200 bg-white px-6 py-8 shadow-sm dark:border-stone-700 dark:bg-stone-900">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Mailroom</p>
-          <h1 className="font-display text-3xl text-stone-900 dark:text-stone-50 sm:text-4xl">Logs</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-600 dark:text-stone-300">
-            {isAdmin
-              ? 'Notification sends and an audit trail of important booking changes. Both views use a clean white workspace for easier scanning.'
-              : isSalonWide
-                ? 'Notification activity and audit events for the salon desk. These lists refresh when the server broadcasts updates (socket) or when you switch back to the tab.'
-                : 'Only rows where the recipient email matches the address you sign in with. The list refreshes when sends update, over the socket, or when you return to this tab.'}
-          </p>
+      <div className="page-shell-xl">
+        <div className="surface-card rounded-[var(--radius-card)] p-6 sm:p-8">
+          <header className="border-b border-stone-200/60 pb-6 dark:border-stone-700/60">
+            <p className="page-eyebrow">Mailroom</p>
+            <h1 className="page-title mt-1">Logs</h1>
+            <p className="page-lede max-w-2xl">
+              {isAdmin
+                ? 'Notification sends and an audit trail of important booking changes. Both views share the same paper-like table rhythm for long scanning sessions.'
+                : isSalonWide
+                  ? 'Notification activity and audit events for the salon desk. These lists refresh when the server broadcasts updates (socket) or when you switch back to the tab.'
+                  : 'Only rows where the recipient email matches the address you sign in with. The list refreshes when sends update, over the socket, or when you return to this tab.'}
+            </p>
+          </header>
 
           {isSalonWide ? (
             <div
-              className="mt-8 inline-flex rounded-lg border border-stone-200 bg-stone-50 p-1 dark:border-stone-600 dark:bg-stone-800/80"
+              className="mt-6 inline-flex rounded-[var(--radius-card)] border border-stone-200/80 bg-[#ebe6df]/90 p-1 dark:border-stone-600 dark:bg-stone-800/80"
               role="tablist"
               aria-label="Log type"
             >
@@ -212,9 +233,9 @@ export default function LogsPage() {
                 role="tab"
                 aria-selected={tab === 'notifications'}
                 onClick={() => setTab('notifications')}
-                className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                   tab === 'notifications'
-                    ? 'bg-white text-stone-900 shadow-sm dark:bg-stone-950 dark:text-stone-50'
+                    ? 'bg-[#fffefb] text-stone-900 shadow-[var(--shadow-card)] dark:bg-stone-950 dark:text-stone-50'
                     : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
                 }`}
               >
@@ -225,9 +246,9 @@ export default function LogsPage() {
                 role="tab"
                 aria-selected={tab === 'audit'}
                 onClick={() => setTab('audit')}
-                className={`rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                   tab === 'audit'
-                    ? 'bg-white text-stone-900 shadow-sm dark:bg-stone-950 dark:text-stone-50'
+                    ? 'bg-[#fffefb] text-stone-900 shadow-[var(--shadow-card)] dark:bg-stone-950 dark:text-stone-50'
                     : 'text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100'
                 }`}
               >
@@ -241,7 +262,7 @@ export default function LogsPage() {
           <>
             {error && (
               <div
-                className="rounded-xl border border-red-200 bg-white px-4 py-3 text-sm text-red-900 shadow-sm dark:border-red-900/50 dark:bg-stone-900 dark:text-red-200"
+                className="rounded-[var(--radius-card)] border border-red-200/90 bg-[#fffefb] px-4 py-3 text-sm text-red-900 shadow-[var(--shadow-card)] dark:border-red-900/50 dark:bg-stone-950/80 dark:text-red-200"
                 role="alert"
               >
                 {error}
@@ -249,13 +270,13 @@ export default function LogsPage() {
             )}
 
             {loading ? (
-              <div className={`${panelClass} flex justify-center py-20`} role="status" aria-label="Loading logs">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-200 border-t-stone-700 dark:border-stone-700 dark:border-t-stone-200" />
+              <div className={`${PANEL_CLASS} flex justify-center py-20`} role="status" aria-label="Loading logs">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-200 border-t-stone-700 dark:border-stone-700 dark:border-t-stone-200" aria-hidden />
               </div>
             ) : (
-              <div className={`${panelClass} overflow-x-auto`}>
+              <div className={`${PANEL_CLASS} overflow-x-auto`}>
                 <table className="min-w-full text-sm text-stone-800 dark:text-stone-200">
-                  <thead className={theadClass}>
+                  <thead className={THEAD_CLASS}>
                     <tr>
                       <th className="px-4 py-3 font-medium">When</th>
                       <th className="px-4 py-3 font-medium">Recipient</th>
@@ -279,7 +300,7 @@ export default function LogsPage() {
                       </tr>
                     ) : (
                       logs.map((row) => (
-                        <tr key={row.id} className={rowClass}>
+                        <tr key={row.id} className={ROW_CLASS}>
                           <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-400">
                             {row.createdAt ? new Date(row.createdAt).toLocaleString() : '—'}
                           </td>
@@ -386,8 +407,8 @@ export default function LogsPage() {
         )}
 
         {tab === 'audit' && isSalonWide && (
-          <div className="space-y-4">
-            <div className={`${panelClass} p-4 sm:p-5`}>
+          <section className="space-y-4" aria-label="Audit trail">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1">
                   <Input
@@ -415,14 +436,14 @@ export default function LogsPage() {
               </div>
             )}
 
-            <div className={`${panelClass} overflow-x-auto`}>
+            <div className={`${PANEL_CLASS} overflow-x-auto`}>
               {auditLoading && auditRows.length === 0 ? (
                 <div className="flex justify-center py-20" role="status" aria-label="Loading audit log">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-200 border-t-stone-700 dark:border-stone-700 dark:border-t-stone-200" />
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-200 border-t-stone-700 dark:border-stone-700 dark:border-t-stone-200" aria-hidden />
                 </div>
               ) : (
                 <table className="min-w-full text-sm text-stone-800 dark:text-stone-200">
-                  <thead className={theadClass}>
+                  <thead className={THEAD_CLASS}>
                     <tr>
                       <th className="px-4 py-3 font-medium">When</th>
                       <th className="px-4 py-3 font-medium">Actor</th>
@@ -441,7 +462,7 @@ export default function LogsPage() {
                       </tr>
                     ) : (
                       auditRows.map((row) => (
-                        <tr key={row.id} className={rowClass}>
+                        <tr key={row.id} className={ROW_CLASS}>
                           <td className="whitespace-nowrap px-4 py-3 text-stone-600 dark:text-stone-400">
                             {row.createdAt ? new Date(row.createdAt).toLocaleString() : '—'}
                           </td>
@@ -456,7 +477,7 @@ export default function LogsPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-stone-800 dark:text-stone-200">{row.action}</td>
-                          <td className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-stone-600 dark:text-stone-400">
+                          <td className="px-4 py-3 text-xs font-medium text-stone-600 dark:text-stone-400">
                             {row.entityType}
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-stone-600 dark:text-stone-400">
@@ -487,7 +508,7 @@ export default function LogsPage() {
                 </Button>
               </div>
             ) : null}
-          </div>
+          </section>
         )}
       </div>
     </AuthGuard>

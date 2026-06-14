@@ -1,9 +1,11 @@
 import express from 'express';
 import { body, param } from 'express-validator';
-import { authenticate, authorize } from '../middlewares/AuthMiddleware.js';
+import { authenticate, authorize, authorizeAny } from '../middlewares/AuthMiddleware.js';
 import validate from '../middlewares/ValidateMiddleware.js';
 import staffTimeOffRoutes from './StaffTimeOffRoutes.js';
 import * as staffDirectoryController from '../controllers/StaffDirectoryController.js';
+
+import * as promoCodeController from '../controllers/PromoCodeController.js';
 
 const router = express.Router();
 
@@ -50,5 +52,37 @@ router.delete(
 );
 
 router.use('/time-off', staffTimeOffRoutes);
+
+router.get('/promo-codes', authenticate, authorizeAny('admin', 'staff'), promoCodeController.listPromos);
+router.post(
+  '/promo-codes',
+  authenticate,
+  authorizeAny('admin', 'staff'),
+  [
+    body('code').trim().notEmpty(),
+    body('discountType').isIn(['percent', 'fixed']),
+    body('amount').isFloat({ gt: 0 }),
+    body('maxUses').optional().isInt({ min: 1 }),
+    body('expiresAt').optional().isString(),
+  ],
+  validate,
+  promoCodeController.createPromo
+);
+router.patch(
+  '/promo-codes/:id',
+  authenticate,
+  authorizeAny('admin', 'staff'),
+  [param('id').isUUID()],
+  validate,
+  promoCodeController.patchPromo
+);
+router.delete(
+  '/promo-codes/:id',
+  authenticate,
+  authorizeAny('admin', 'staff'),
+  [param('id').isUUID()],
+  validate,
+  promoCodeController.deletePromo
+);
 
 export default router;

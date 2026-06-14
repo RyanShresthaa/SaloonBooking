@@ -12,7 +12,13 @@ export default (sequelize) => {
       name: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
+      },
+      salonId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'marketplace_salons', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
       },
       description: {
         type: DataTypes.TEXT,
@@ -45,10 +51,21 @@ export default (sequelize) => {
         allowNull: false,
         references: { model: 'salon_resources', key: 'id' },
       },
+      platformCategoryId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'platform_service_categories', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
+      discountPrice: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
+      imageUrls: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      genderTag: { type: DataTypes.STRING(32), allowNull: true },
     },
     {
       tableName: 'services',
       timestamps: true,
+      indexes: [{ unique: true, fields: ['salonId', 'name'], name: 'services_salon_id_name_unique' }],
     }
   );
 

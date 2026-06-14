@@ -28,7 +28,8 @@ function normalizeApiBaseUrl(raw: string | undefined): string {
       'Missing VITE_API_URL. In Vercel: Project → Settings → Environment Variables → add VITE_API_URL (e.g. https://your-api.onrender.com/api), then redeploy the frontend.',
     );
   }
-  return 'http://localhost:5000/api';
+  /** Same-origin `/api` in dev — proxied by Vite to the API (see `vite.config.ts`). Avoids `ERR_CONNECTION_REFUSED` when the SPA origin is not :5000. */
+  return '/api';
 }
 
 const api = axios.create({

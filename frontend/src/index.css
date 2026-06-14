@@ -2,12 +2,30 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ─── Theme tokens ─────────────────────────────────────────────────────────── */
+
 @theme {
-  --font-family-display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --font-family-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --radius-card: 0.5rem;
-  --shadow-card: 0 1px 0 rgba(28, 25, 23, 0.04);
+  /* Salon desk — Playfair for display, DM Sans for UI */
+  --font-family-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-family-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-family-sans);
+
+  /* Brand tokens */
+  --color-sd-bg: #f2ede6;
+  --color-sd-surface: #ffffff;
+  --color-sd-border: #e0d9d0;
+  --color-sd-text: #1c1917;
+  --color-sd-muted: #78716c;
+  --color-sd-accent: #b07d62;
+  --color-sd-active: #2d2926;
+
+  --radius-card: 10px;
+  --radius-input: 6px;
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.07);
+  --shadow-card-inset: inset 0 1px 2px rgba(28, 25, 23, 0.06);
 }
+
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
 
 @layer base {
   html {
@@ -18,9 +36,39 @@
   body {
     @apply m-0 min-h-dvh bg-white text-stone-900 antialiased transition-colors duration-200;
     font-family: var(--font-family-sans);
+    font-size: 1rem;
+    line-height: 1.5;
   }
 
   .dark body {
+    @apply bg-stone-950 text-stone-100;
+  }
+
+  /* Customer/guest shell — warmer type, more generous leading */
+  html[data-customer-motion='1'] body {
+    font-family: var(--font-family-sans);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    background-color: var(--color-sd-bg);
+    @apply text-stone-900;
+  }
+
+  .dark html[data-customer-motion='1'] body {
+    @apply bg-stone-950 text-stone-100;
+    font-size: 1.0625rem;
+    line-height: 1.65;
+  }
+
+  /* Admin/staff shell — no editorial layer, tighter rhythm */
+  html:not([data-customer-motion]) body {
+    font-family: var(--font-family-sans);
+    font-size: 1rem;
+    line-height: 1.55;
+    background-color: var(--color-sd-bg);
+    @apply text-stone-900;
+  }
+
+  .dark html:not([data-customer-motion]) body {
     @apply bg-stone-950 text-stone-100;
   }
 
@@ -28,26 +76,19 @@
     @apply min-h-dvh;
   }
 
-  h1,
-  h2,
-  h3 {
+  h1, h2, h3 {
     font-family: var(--font-family-display);
     font-weight: 500;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
   }
 
-  ::selection {
-    @apply bg-stone-800 text-stone-50;
-  }
+  ::selection      { @apply bg-stone-800 text-stone-50; }
+  .dark ::selection { @apply bg-stone-200 text-stone-900; }
 
-  .dark ::selection {
-    @apply bg-stone-200 text-stone-900;
-  }
-
+  /* Kill motion for users who ask for it — !important overrides inline GSAP values */
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
@@ -55,41 +96,213 @@
   }
 }
 
+/* ─── Utilities ────────────────────────────────────────────────────────────── */
+
 @layer utilities {
   .font-display {
     font-family: var(--font-family-display);
   }
 
+  /* Surface tokens — two levels of elevation */
   .surface-card {
-    @apply rounded-[var(--radius-card)] border border-stone-200/90 bg-white shadow-[var(--shadow-card)] transition-colors duration-200 dark:border-stone-700/90 dark:bg-stone-900;
+    @apply rounded-[var(--radius-card)] text-stone-900 transition-[border-color,box-shadow,background-color]
+           duration-200 dark:border-stone-600/90 dark:bg-stone-900 dark:text-stone-100;
+    border: 1px solid var(--color-sd-border);
+    background-color: var(--color-sd-surface);
+    box-shadow: var(--shadow-card);
   }
 
   .surface-muted {
-    @apply rounded-[var(--radius-card)] border border-stone-200/70 bg-white transition-colors duration-200 dark:border-stone-700/60 dark:bg-stone-900/80;
+    @apply rounded-[var(--radius-card)] border border-stone-200/80 bg-[#faf7f2] text-stone-900
+           transition-[border-color,background-color] duration-200
+           dark:border-stone-600/70 dark:bg-stone-900/85 dark:text-stone-100;
+  }
+
+  /* Staff/admin overrides — match desk surfaces */
+  html:not([data-customer-motion]) .surface-card {
+    @apply dark:border-stone-700/90 dark:bg-stone-900;
+    border-color: var(--color-sd-border);
+    background-color: var(--color-sd-surface);
+    box-shadow: var(--shadow-card);
+  }
+
+  html:not([data-customer-motion]) .surface-muted {
+    @apply border-stone-200/75 bg-[#faf8f4] dark:border-stone-700/65 dark:bg-stone-900/85;
   }
 
   .link-quiet {
-    @apply text-stone-700 underline decoration-stone-300 underline-offset-[5px] transition hover:text-stone-900 hover:decoration-stone-500 dark:text-stone-300 dark:decoration-stone-600 dark:hover:text-stone-100;
+    @apply text-stone-800 underline decoration-stone-400/80 decoration-1 underline-offset-[3px]
+           transition-colors hover:text-stone-950 hover:decoration-stone-600
+           dark:text-stone-200 dark:decoration-stone-500
+           dark:hover:text-stone-50 dark:hover:decoration-stone-400;
   }
 
   .focus-ring {
-    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-800/25 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-stone-200/30 dark:focus-visible:ring-offset-stone-950;
+    @apply focus:outline-none
+           focus-visible:ring-2 focus-visible:ring-stone-500/35 focus-visible:ring-offset-2
+           focus-visible:ring-offset-[#f2ede6]
+           dark:focus-visible:ring-stone-400/35 dark:focus-visible:ring-offset-stone-950;
   }
 
-  @keyframes landing-marquee-scroll {
-    to {
-      transform: translateX(-50%);
-    }
+  html:not([data-customer-motion]) .focus-ring {
+    @apply focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-950;
   }
+
+  /* Prevent CSS smooth-scroll fighting Lenis */
+  html[data-customer-motion='1'] {
+    scroll-behavior: auto;
+  }
+
+  /* ── Marquee (landing hero strip) ── */
 
   .landing-marquee-track {
     display: flex;
     width: max-content;
   }
 
+  @keyframes landing-marquee-scroll {
+    to { transform: translateX(-50%); }
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     .landing-marquee-animate .landing-marquee-track {
       animation: landing-marquee-scroll 32s linear infinite;
     }
+  }
+
+  /* ── Customer motion shell ── */
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Warm paper gradient behind the customer-facing app */
+    html[data-customer-motion='1'] .customer-app-shell {
+      background:
+        radial-gradient(ellipse 85% 55% at 50% -15%, rgba(176, 125, 98, 0.11), transparent 52%),
+        radial-gradient(ellipse 50% 40% at 100% 0%, rgba(176, 125, 98, 0.06), transparent 45%),
+        linear-gradient(180deg, #f5f0e9 0%, #f2ede6 42%, #ebe4db 100%);
+    }
+
+    .dark html[data-customer-motion='1'] .customer-app-shell {
+      background: linear-gradient(180deg, #0c0a09 0%, #1c1917 40%, #0f0e0d 100%);
+    }
+
+    html[data-customer-motion='1'] .customer-main-rail {
+      padding-bottom: clamp(2.5rem, 6vw, 4rem);
+    }
+
+    /* Surfaces lift subtly on hover rather than translate */
+    html[data-customer-motion='1'] .surface-card,
+    html[data-customer-motion='1'] .surface-muted {
+      transition: border-color 0.35s ease, box-shadow 0.35s ease;
+    }
+
+    html[data-customer-motion='1'] .surface-card:hover,
+    html[data-customer-motion='1'] .surface-muted:hover {
+      transform: none;
+      border-color: rgba(176, 125, 98, 0.35);
+      box-shadow:
+        0 2px 12px rgba(0, 0, 0, 0.07),
+        0 14px 36px -20px rgba(28, 25, 23, 0.14);
+    }
+
+    .dark html[data-customer-motion='1'] .surface-card:hover,
+    .dark html[data-customer-motion='1'] .surface-muted:hover {
+      border-color: rgba(168, 162, 158, 0.35);
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        0 12px 32px -20px rgba(0, 0, 0, 0.45);
+    }
+
+    html[data-customer-motion='1'] .link-quiet {
+      transition: color 0.2s ease, text-decoration-color 0.2s ease;
+    }
+
+    /* Nav wordmark — solid, no gradient */
+    html[data-customer-motion='1'] .customer-nav-chrome .font-display {
+      color: #292524;
+      background: none;
+      -webkit-background-clip: unset;
+      background-clip: unset;
+    }
+
+    .dark html[data-customer-motion='1'] .customer-nav-chrome .font-display {
+      color: #fafaf9;
+      background: none;
+      -webkit-background-clip: unset;
+      background-clip: unset;
+    }
+
+    /* Register CTA — dark pill in nav */
+    html[data-customer-motion='1'] .customer-nav-chrome a[href='/register'] {
+      background: #1c1917;
+      border-color: #1c1917;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    html[data-customer-motion='1'] .customer-nav-chrome a[href='/register']:hover {
+      filter: brightness(1.05);
+    }
+
+    .dark html[data-customer-motion='1'] .customer-nav-chrome a[href='/register'] {
+      background: #e7e5e4;
+      color: #1c1917;
+      border-color: #d6d3d1;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    }
+
+    /* Hero blobs — dial back saturation slightly */
+    html[data-customer-motion='1'] .customer-landing [data-blob] {
+      opacity: 0.85;
+      filter: saturate(0.92);
+    }
+  }
+}
+
+/* ─── Components ───────────────────────────────────────────────────────────── */
+
+@layer components {
+  /* Typography helpers */
+  .page-eyebrow  { @apply text-xs font-semibold uppercase tracking-[0.14em] text-[#78716c] dark:text-stone-400; }
+  .section-label { @apply block text-[13px] font-semibold tracking-wide text-[#57534e] dark:text-stone-300; }
+
+  /* Page shells — pick the width that fits the route */
+  .page-shell        { @apply mx-auto max-w-5xl space-y-8; }
+  .page-shell-spacious { @apply mx-auto max-w-5xl space-y-10; }
+  .page-shell-xl     { @apply mx-auto max-w-6xl space-y-6 pb-10; }
+  .page-shell-form   { @apply mx-auto max-w-2xl space-y-8; }
+  .page-shell-bulk   { @apply mx-auto max-w-4xl space-y-6; }
+  .page-shell-staff  { @apply mx-auto max-w-4xl space-y-10 pb-16; }
+
+  /* Page header patterns */
+  .page-header {
+    @apply border-b border-stone-300/50 pb-8 dark:border-stone-600/50;
+  }
+
+  .page-header-row {
+    @apply flex flex-col gap-4 border-b border-stone-300/50 pb-8
+           dark:border-stone-600/50 sm:flex-row sm:items-end sm:justify-between;
+  }
+
+  .page-title {
+    font-family: var(--font-family-display);
+    @apply text-3xl text-stone-900 sm:text-4xl dark:text-stone-50;
+  }
+
+  .page-lede { @apply mt-2 text-sm leading-relaxed text-[#78716c] dark:text-stone-300; }
+
+  .page-header .page-title,
+  .page-header-row .page-title { @apply mt-1; }
+
+  /* Data table head */
+  thead.data-table-head {
+    @apply border-b border-stone-200/95 bg-[#ebe6df] dark:border-stone-700 dark:bg-stone-800/95;
+  }
+
+  thead.data-table-head.data-table-head--sticky {
+    @apply sticky top-0 z-10 backdrop-blur-sm;
+  }
+
+  thead.data-table-head th {
+    @apply text-left text-xs font-medium normal-case tracking-normal
+           text-stone-700 dark:text-stone-300;
   }
 }

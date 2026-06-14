@@ -8,7 +8,10 @@ export interface RetailProductPayload {
   isActive?: boolean;
 }
 
-export const listRetailProducts = () => api.get('/retail-products');
+export const listRetailProducts = (params?: { salonId?: string | null }) =>
+  api.get('/retail-products', {
+    params: params?.salonId != null && String(params.salonId).trim() !== '' ? { salonId: String(params.salonId).trim() } : {},
+  });
 
 export const createRetailProduct = (data: RetailProductPayload) => api.post('/retail-products', data);
 

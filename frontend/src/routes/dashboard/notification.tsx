@@ -18,6 +18,12 @@ import Button from '@/components/ui/Button';
 import { Upload, FileSpreadsheet, CheckCircle, XCircle, ChevronLeft } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 
+// ─── Constants ───
+
+const BATCH_LOG_POLL_MS = 1500;
+
+// ─── Types ───
+
 interface Template {
   id: string;
   name: string;
@@ -54,11 +60,27 @@ interface BulkBatchRow {
   awaitingApproval?: number;
 }
 
+// ─── Helpers ───
+
+function statusClass(status: LogStatus) {
+  if (status === 'sent') return 'text-green-600';
+  if (status === 'failed') return 'text-red-600';
+  if (status === 'declined') return 'text-stone-600';
+  if (status === 'pending_approval') return 'text-amber-900';
+  return 'text-stone-600';
+}
+
+// ─── Exports ───
+
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const canBulk = user?.role === 'admin' || user?.role === 'staff';
-  const isAdmin = user?.role === 'admin';
+  /** Approve / decline / mark finished: salon desk only (must belong to a salon); never platform super_admin. */
+  const canModerateBookingMessages =
+    user?.role !== 'super_admin' &&
+    Boolean(user?.salonId) &&
+    (user?.role === 'admin' || user?.role === 'staff');
   const isSalonWide = user?.role === 'admin' || user?.role === 'staff';
 
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -84,32 +106,18 @@ export default function NotificationsPage() {
   }, []);
 
   useEffect(() => {
-    listTemplates().then((res) => setTemplates(res.data.data));
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    listBulkBatches()
-      .then((res) => {
-        if (!cancelled) setBatches(Array.isArray(res.data.data) ? res.data.data : []);
-      })
-      .catch(() => {
-        if (!cancelled) setBatches([]);
-      })
-      .finally(() => {
-        if (!cancelled) setBatchesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    queueMicrotask(() => {
+      void listTemplates().then((res) => setTemplates(res.data.data));
+      loadBatches();
+    });
+  }, [loadBatches]);
 
   useEffect(() => {
     if (!batchId) return;
 
     const socket = connectSocket();
 
-    socket.on('notification:update', (data: Partial<ProgressItem> & { logId: string; batchId?: string | null }) => {
+    const onNotificationUpdate = (data: Partial<ProgressItem> & { logId: string; batchId?: string | null }) => {
       if (data.batchId === batchId) {
         setProgress((prev) => {
           const existing = prev.find((p) => p.logId === data.logId);
@@ -129,9 +137,12 @@ export default function NotificationsPage() {
           ];
         });
       }
-    });
+    };
+
+    socket.on('notification:update', onNotificationUpdate);
 
     return () => {
+      socket.off('notification:update', onNotificationUpdate);
       disconnectSocket();
     };
   }, [batchId]);
@@ -163,16 +174,16 @@ export default function NotificationsPage() {
               requiresVipTemplate: log.template?.requiresVip,
               bookingMarkedFinished: log.bookingMarkedFinished,
               appointmentData: log.appointmentData,
-            })
-          )
+            }),
+          ),
         );
       } catch {
-        /* keep socket updates as primary source */
+        // Socket stream remains authoritative if this snapshot fails.
       }
     };
 
     void syncBatchLogs();
-    const intervalId = setInterval(syncBatchLogs, 1500);
+    const intervalId = setInterval(syncBatchLogs, BATCH_LOG_POLL_MS);
     return () => clearInterval(intervalId);
   }, [batchId]);
 
@@ -206,7 +217,7 @@ export default function NotificationsPage() {
       void loadBatches();
       if (autoDeclined && autoDeclined > 0) {
         alert(
-          `${autoDeclined} row(s) were auto-declined (VIP-only template needs appointmentId + VIP booking, or email must match the appointment).`
+          `${autoDeclined} row(s) were auto-declined (VIP-only template needs appointmentId + VIP booking, or email must match the appointment).`,
         );
       }
     } catch (error: unknown) {
@@ -268,6 +279,13 @@ export default function NotificationsPage() {
   const canApproveByVipRules = (p: ProgressItem) =>
     !p.requiresVipTemplate || Boolean(p.appointmentData?.isVip);
 
+  const sentCount = progress.filter((p) => p.status === 'sent').length;
+  const failedCount = progress.filter((p) => p.status === 'failed').length;
+  const declinedCount = progress.filter((p) => p.status === 'declined').length;
+  const pendingApprovalCount = progress.filter((p) => p.status === 'pending_approval').length;
+  const inFlightCount = progress.filter((p) => p.status === 'queued' || p.status === 'processing').length;
+  const totalCount = expectedTotal || progress.length;
+
   const handleApproveAll = async () => {
     if (!batchId) return;
     if (!confirm(`Approve all pending messages in this batch (${pendingApprovalCount})?`)) return;
@@ -285,37 +303,23 @@ export default function NotificationsPage() {
     }
   };
 
-  const sentCount = progress.filter((p) => p.status === 'sent').length;
-  const failedCount = progress.filter((p) => p.status === 'failed').length;
-  const declinedCount = progress.filter((p) => p.status === 'declined').length;
-  const pendingApprovalCount = progress.filter((p) => p.status === 'pending_approval').length;
-  const inFlightCount = progress.filter((p) => p.status === 'queued' || p.status === 'processing').length;
-  const totalCount = expectedTotal || progress.length;
-
-  const statusClass = (status: LogStatus) => {
-    if (status === 'sent') return 'text-green-600';
-    if (status === 'failed') return 'text-red-600';
-    if (status === 'declined') return 'text-stone-600';
-    if (status === 'pending_approval') return 'text-amber-900';
-    return 'text-stone-600';
-  };
-
   return (
     <AuthGuard>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div>
-          <h1 className="font-display text-3xl text-stone-900 sm:text-4xl">Bulk notifications</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600">
+      <div className="page-shell-bulk">
+        <header className="page-header">
+          <p className="page-eyebrow">Communications</p>
+          <h1 className="page-title">Bulk notifications</h1>
+          <p className="page-lede max-w-2xl">
             {canBulk
               ? 'Choose a template, upload recipients, then an admin reviews and approves each message before anything is sent.'
               : 'Bulk sends you were included on (same history staff see for the whole salon, filtered to you).'}
           </p>
-        </div>
+        </header>
 
-        <div className="surface-card overflow-hidden rounded-lg">
-          <div className="border-b border-stone-200/80 px-4 py-3 bg-stone-50">
-            <h2 className="text-sm font-semibold text-stone-900">Recent bulk sends</h2>
-            <p className="text-xs text-stone-500 mt-0.5">
+        <section className="surface-card overflow-hidden rounded-lg" aria-label="Recent bulk sends">
+          <div className="border-b border-stone-200/80 bg-[#ebe6df] px-4 py-3 dark:border-stone-700 dark:bg-stone-800/80">
+            <h2 className="text-sm font-medium text-stone-900 dark:text-stone-100">Recent bulk sends</h2>
+            <p className="text-xs text-stone-600 mt-0.5 dark:text-stone-400">
               {isSalonWide
                 ? 'All batches from the salon. Click a row to open review and delivery status.'
                 : 'Only batches where you appear as a recipient.'}
@@ -323,14 +327,14 @@ export default function NotificationsPage() {
           </div>
           {batchesLoading ? (
             <div className="flex justify-center py-10">
-              <div className="h-7 w-7 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" />
+              <div className="h-7 w-7 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" aria-hidden />
             </div>
           ) : batches.length === 0 ? (
             <p className="text-sm text-stone-500 px-4 py-8 text-center">No bulk batches yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="text-left text-stone-600 bg-white border-b border-stone-200/80">
+                <thead className="data-table-head">
                   <tr>
                     <th className="px-4 py-2 font-medium">Started</th>
                     <th className="px-4 py-2 font-medium">Batch</th>
@@ -365,10 +369,10 @@ export default function NotificationsPage() {
               </table>
             </div>
           )}
-        </div>
+        </section>
 
         {!batchId ? (
-          <div className="surface-card space-y-5 rounded-lg p-6">
+          <section className="surface-card space-y-5 rounded-lg p-6" aria-label="Upload bulk notifications">
             {!canBulk && (
               <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm px-4 py-3">
                 Only salon staff and admins can upload bulk Excel files. You can still see batches that included your
@@ -412,10 +416,10 @@ export default function NotificationsPage() {
               }`}
             >
               <input {...getInputProps()} />
-              <Upload className="h-10 w-10 text-stone-400 mx-auto mb-3" />
+              <Upload className="h-10 w-10 text-stone-400 mx-auto mb-3" aria-hidden />
               {file ? (
                 <div className="flex items-center justify-center gap-2 text-sm text-stone-700">
-                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" aria-hidden />
                   {file.name}
                 </div>
               ) : (
@@ -425,21 +429,16 @@ export default function NotificationsPage() {
               )}
             </div>
 
-            <Button
-              onClick={handleUpload}
-              disabled={!canBulk || !file || !selectedTemplate}
-              loading={uploading}
-              className="w-full"
-            >
+            <Button onClick={handleUpload} disabled={!canBulk || !file || !selectedTemplate} loading={uploading} className="w-full">
               Upload for admin review
             </Button>
-          </div>
+          </section>
         ) : (
-          <div className="surface-card space-y-4 rounded-lg p-6">
+          <section className="surface-card space-y-4 rounded-lg p-6" aria-label="Batch review">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" onClick={() => setBatchId(null)} className="shrink-0">
-                  <ChevronLeft className="h-4 w-4 mr-1 inline" />
+                  <ChevronLeft className="h-4 w-4 mr-1 inline" aria-hidden />
                   Back
                 </Button>
                 <h2 className="text-lg font-semibold text-stone-900">Batch review</h2>
@@ -449,13 +448,14 @@ export default function NotificationsPage() {
               </div>
             </div>
 
-            {!isAdmin && pendingApprovalCount > 0 && (
+            {!canModerateBookingMessages && pendingApprovalCount > 0 && (
               <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm px-4 py-3">
-                This batch has messages awaiting admin approval. Only an admin can approve or decline individual sends.
+                This batch has messages awaiting approval. Only that salon&apos;s desk team (linked admin or staff
+                account) can approve or decline sends. Platform super admins cannot act on salon booking messages.
               </div>
             )}
 
-            {isAdmin && pendingApprovalCount > 0 && (
+            {canModerateBookingMessages && pendingApprovalCount > 0 && (
               <div className="flex flex-wrap gap-2">
                 <Button onClick={handleApproveAll} loading={approvingAll} disabled={approvingAll}>
                   Approve all pending ({pendingApprovalCount})
@@ -463,29 +463,37 @@ export default function NotificationsPage() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-4 text-sm">
+            <div className="flex flex-wrap gap-4 text-sm" aria-label="Batch delivery summary">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-green-600" aria-hidden />
                 <span className="text-stone-700">{sentCount} sent</span>
               </div>
               <div className="flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-red-600" />
+                <XCircle className="h-4 w-4 text-red-600" aria-hidden />
                 <span className="text-stone-700">{failedCount} failed</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-stone-500 font-medium">⊘</span>
+                <span className="text-stone-500 font-medium" aria-hidden>
+                  ⊘
+                </span>
                 <span className="text-stone-700">{declinedCount} declined</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-medium text-amber-900">◉</span>
+                <span className="font-medium text-amber-900" aria-hidden>
+                  ◉
+                </span>
                 <span className="text-stone-700">{pendingApprovalCount} awaiting approval</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-amber-600 font-medium">⏳</span>
+                <span className="text-amber-600 font-medium" aria-hidden>
+                  ⏳
+                </span>
                 <span className="text-stone-700">{inFlightCount} queued / sending</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-green-700 font-medium">✓</span>
+                <span className="text-green-700 font-medium" aria-hidden>
+                  ✓
+                </span>
                 <span className="text-stone-700">
                   {progress.filter((p) => p.bookingMarkedFinished).length} booking follow-ups finished
                 </span>
@@ -504,7 +512,7 @@ export default function NotificationsPage() {
                     <th className="px-3 py-2 font-medium">VIP</th>
                     <th className="px-3 py-2 font-medium">Booking</th>
                     <th className="px-3 py-2 font-medium">Status</th>
-                    {isAdmin ? <th className="px-3 py-2 font-medium">Actions</th> : null}
+                    {canModerateBookingMessages ? <th className="px-3 py-2 font-medium">Actions</th> : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200/80">
@@ -526,7 +534,7 @@ export default function NotificationsPage() {
                         ) : null}
                         {p.error ? <p className="text-xs text-red-600 mt-0.5 max-w-[12rem] truncate">{p.error}</p> : null}
                       </td>
-                      {isAdmin ? (
+                      {canModerateBookingMessages ? (
                         <td className="px-3 py-2 whitespace-nowrap align-top">
                           <div className="flex flex-col gap-2 items-start">
                             {p.status === 'pending_approval' ? (
@@ -582,7 +590,7 @@ export default function NotificationsPage() {
             <Button variant="secondary" onClick={() => navigate('/logs')} className="w-full">
               View All Logs
             </Button>
-          </div>
+          </section>
         )}
       </div>
     </AuthGuard>

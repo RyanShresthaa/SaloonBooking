@@ -20,6 +20,13 @@ import TemplatesPage from '@/routes/dashboard/templates';
 import NotificationsPage from '@/routes/dashboard/notification';
 import LogsPage from '@/routes/dashboard/log';
 import StaffAdminPage from '@/routes/dashboard/staff';
+import DemoPage from '@/routes/demo';
+import MarketplaceBrowsePage from '@/routes/marketplace/MarketplaceBrowsePage';
+import SalonProfilePage from '@/routes/marketplace/SalonProfilePage';
+import MarketplaceApplyPage from '@/routes/marketplace/MarketplaceApplyPage';
+import MarketplaceMyListingPage from '@/routes/marketplace/MarketplaceMyListingPage';
+import AdminMarketplacePage from '@/routes/marketplace/AdminMarketplacePage';
+import PlatformDashboardPage from '@/routes/platform/PlatformDashboardPage';
 
 const App = () => {
   return (
@@ -27,6 +34,7 @@ const App = () => {
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<HomePage />} />
+          <Route path="demo" element={<DemoPage />} />
           <Route element={<AuthStack />}>
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />
@@ -47,6 +55,12 @@ const App = () => {
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="staff" element={<StaffAdminPage />} />
+          <Route path="marketplace/apply" element={<MarketplaceApplyPage />} />
+          <Route path="marketplace/my-listing" element={<MarketplaceMyListingPage />} />
+          <Route path="marketplace/:slug" element={<SalonProfilePage />} />
+          <Route path="marketplace" element={<MarketplaceBrowsePage />} />
+          <Route path="admin/marketplace" element={<AdminMarketplacePage />} />
+          <Route path="platform" element={<PlatformDashboardPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

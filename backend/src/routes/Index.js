@@ -14,6 +14,11 @@ import auditRoutes from './AuditRoutes.js';
 import publicRoutes from './PublicRoutes.js';
 import staffRoutes from './StaffRoutes.js';
 import billingRoutes from './BillingRoutes.js';
+import marketplaceRoutes from './MarketplaceRoutes.js';
+import adminMarketplaceRoutes from './AdminMarketplaceRoutes.js';
+import platformRoutes from './PlatformRoutes.js';
+import favoriteRoutes from './FavoriteRoutes.js';
+import salonReviewRoutes from './SalonReviewRoutes.js';
 
 const router = express.Router();
 
@@ -26,6 +31,11 @@ const publicLimiter = rateLimit({
 });
 
 router.use('/public', publicLimiter, publicRoutes);
+router.use('/marketplace', marketplaceRoutes);
+router.use('/admin/marketplace', adminMarketplaceRoutes);
+router.use('/platform', platformRoutes);
+router.use('/favorites', favoriteRoutes);
+router.use('/reviews', salonReviewRoutes);
 router.use('/staff', staffRoutes);
 router.use('/billing', billingRoutes);
 

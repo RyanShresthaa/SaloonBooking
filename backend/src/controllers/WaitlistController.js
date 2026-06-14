@@ -1,9 +1,16 @@
 import waitlistService from '../services/WaitlistService.js';
 import { sendSuccess, sendCreated } from '../utils/apiResponse.js';
+import { requireStaffSalonId } from '../utils/salonScope.js';
+
+// ─── Handlers ───
 
 const listWaitlist = async (req, res, next) => {
   try {
-    const rows = await waitlistService.list(req.user.id, req.user.role);
+    let salonId = null;
+    if (req.user.role === 'admin' || req.user.role === 'staff') {
+      salonId = requireStaffSalonId(req.user);
+    }
+    const rows = await waitlistService.list(req.user.id, req.user.role, salonId);
     return sendSuccess(res, rows, 'Waitlist retrieved');
   } catch (error) {
     next(error);
@@ -27,11 +34,23 @@ const createWaitlist = async (req, res, next) => {
 
 const updateWaitlist = async (req, res, next) => {
   try {
-    const row = await waitlistService.updateStatus(req.params.id, req.body.status, req.user.id, req.user.role);
+    let salonId = null;
+    if (req.user.role === 'admin' || req.user.role === 'staff') {
+      salonId = requireStaffSalonId(req.user);
+    }
+    const row = await waitlistService.updateStatus(
+      req.params.id,
+      req.body.status,
+      req.user.id,
+      req.user.role,
+      salonId
+    );
     return sendSuccess(res, row, 'Waitlist updated');
   } catch (error) {
     next(error);
   }
 };
+
+// ─── Exports ───
 
 export { listWaitlist, createWaitlist, updateWaitlist };

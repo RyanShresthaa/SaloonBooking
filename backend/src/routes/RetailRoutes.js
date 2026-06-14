@@ -1,12 +1,18 @@
 import express from 'express';
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 import { authenticate, authorize } from '../middlewares/AuthMiddleware.js';
 import validate from '../middlewares/ValidateMiddleware.js';
 import * as retailProductController from '../controllers/RetailProductController.js';
 
 const router = express.Router();
 
-router.get('/', authenticate, retailProductController.listRetail);
+router.get(
+  '/',
+  [query('salonId').optional().isUUID().withMessage('salonId must be a UUID')],
+  validate,
+  authenticate,
+  retailProductController.listRetail
+);
 
 router.post(
   '/',

@@ -36,6 +36,13 @@ export default (sequelize) => {
         allowNull: false,
         defaultValue: 'pending',
       },
+      salonId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'marketplace_salons', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
+      },
     },
     {
       tableName: 'waitlist_entries',

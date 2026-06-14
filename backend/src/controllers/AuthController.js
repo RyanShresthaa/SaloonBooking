@@ -3,6 +3,8 @@ import { User, Appointment } from '../models/Index.js';
 import { sendSuccess, sendCreated, sendBadRequest } from '../utils/apiResponse.js';
 import env from '../config/Env.js';
 
+// ─── Handlers ───
+
 const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -62,7 +64,8 @@ const login = async (req, res, next) => {
 
 const getMe = async (req, res, next) => {
   try {
-    return sendSuccess(res, req.user, 'User profile retrieved');
+    const payload = await authService.formatAuthUser(req.user);
+    return sendSuccess(res, payload, 'User profile retrieved');
   } catch (error) {
     next(error);
   }
@@ -119,6 +122,8 @@ const resetPassword = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── Exports ───
 
 export {
   register,

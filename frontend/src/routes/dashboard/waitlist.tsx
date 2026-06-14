@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { useSearchParams } from 'react-router-dom';
 import { listServices } from '@/lib/api/services';
 import { listWaitlist, createWaitlistEntry, updateWaitlistStatus } from '@/lib/api/waitlist';
 import AuthGuard from '@/components/layout/AuthGuard';
@@ -7,6 +9,9 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
+import { LEGACY_DEFAULT_SALON_ID } from '@/lib/constants/salon';
+
+// ─── Types ───
 
 type Service = { id: string; name: string };
 type Row = {
@@ -19,13 +24,24 @@ type Row = {
   user?: { name?: string; email?: string };
 };
 
+// ─── Constants ───
+
+const STATUS_TABS = ['all', 'pending', 'contacted', 'fulfilled', 'cancelled'] as const;
+const STAFF_STATUS_ACTIONS = ['contacted', 'fulfilled', 'cancelled'] as const;
+
+// ─── Exports ───
+
 export default function WaitlistPage() {
+  const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const isSalonWide = user?.role === 'admin' || user?.role === 'staff';
+  const customerSalonId = searchParams.get('salonId')?.trim() || LEGACY_DEFAULT_SALON_ID;
   const [services, setServices] = useState<Service[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [statusTab, setStatusTab] = useState<(typeof STATUS_TABS)[number]>('all');
+  const [search, setSearch] = useState('');
 
   const load = useCallback(() => {
     listWaitlist()
@@ -35,8 +51,7 @@ export default function WaitlistPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    listServices().then((res) => {
+    listServices(isSalonWide ? undefined : customerSalonId).then((res) => {
       if (!cancelled) setServices(res.data.data || []);
     });
     listWaitlist()
@@ -52,7 +67,7 @@ export default function WaitlistPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isSalonWide, customerSalonId]);
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<{
     serviceId: string;
@@ -87,13 +102,30 @@ export default function WaitlistPage() {
     }
   };
 
+  const visibleRows = useMemo(() => {
+    let list = rows;
+    if (statusTab !== 'all') {
+      list = list.filter((r) => r.status === statusTab);
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter((r) => {
+        const guest = `${r.user?.name ?? ''} ${r.user?.email ?? ''}`.toLowerCase();
+        const svc = (r.service?.name ?? '').toLowerCase();
+        const notes = (r.notes ?? '').toLowerCase();
+        return guest.includes(q) || svc.includes(q) || notes.includes(q);
+      });
+    }
+    return list;
+  }, [rows, statusTab, search]);
+
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-5xl space-y-10">
-        <header className="border-b border-stone-300/50 pb-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">Demand</p>
-          <h1 className="font-display text-3xl text-stone-900 sm:text-4xl">Waitlist</h1>
-          <p className="mt-2 text-sm text-stone-600">
+      <div className="page-shell-spacious">
+        <header className="page-header">
+          <p className="page-eyebrow">Demand</p>
+          <h1 className="page-title">Waitlist</h1>
+          <p className="page-lede">
             Request a callback when your preferred service opens up. The salon team updates status as they reach out.
           </p>
         </header>
@@ -102,11 +134,11 @@ export default function WaitlistPage() {
           <div className="rounded-md border border-red-200/90 bg-red-50/90 px-4 py-3 text-sm text-red-900">{error}</div>
         ) : null}
 
-        <section className="surface-card rounded-lg p-6 sm:p-8">
+        <section className="surface-card rounded-lg p-6 sm:p-8" aria-label="Join waitlist">
           <h2 className="font-display text-xl text-stone-900">Join the list</h2>
           <form onSubmit={handleSubmit(onCreate)} className="mt-6 space-y-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Service</label>
+              <label className="section-label">Service</label>
               <select
                 className="rounded-md border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 focus-ring"
                 {...register('serviceId', { required: true })}
@@ -122,7 +154,7 @@ export default function WaitlistPage() {
             <Input label="Preferred date (optional)" type="date" {...register('preferredDate')} />
             <Input label="Phone (optional)" type="tel" {...register('phone')} />
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Notes</label>
+              <label className="section-label">Notes</label>
               <textarea rows={2} className="resize-none rounded-md border border-stone-300 bg-white px-3 py-2 text-sm focus-ring" {...register('notes')} />
             </div>
             <Button type="submit" loading={isSubmitting}>
@@ -131,16 +163,49 @@ export default function WaitlistPage() {
           </form>
         </section>
 
-        <section>
-          <h2 className="font-display text-xl text-stone-900">Entries</h2>
+        <section aria-label="Waitlist entries">
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+            <h2 className="font-display text-xl text-stone-900">Entries</h2>
+            <div className="relative w-full max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" aria-hidden />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search guest, service, notes…"
+                className="w-full rounded-md border border-stone-300 bg-[#fffefb] py-2 pl-9 pr-3 text-sm text-stone-900 focus-ring"
+                aria-label="Search waitlist"
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+            {STATUS_TABS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusTab(s)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  statusTab === s
+                    ? 'border-stone-900 bg-stone-900 text-stone-50'
+                    : 'border-stone-300 bg-[#fffefb] text-stone-700 hover:border-stone-500'
+                }`}
+              >
+                {s === 'all' ? 'All' : s}
+              </button>
+            ))}
+          </div>
           {loading ? (
             <p className="mt-4 text-sm text-stone-500">Loading…</p>
           ) : rows.length === 0 ? (
             <p className="mt-4 text-sm text-stone-600">No waitlist rows yet.</p>
+          ) : visibleRows.length === 0 ? (
+            <p className="mt-4 rounded-lg border border-stone-200/80 bg-[#faf7f2] px-4 py-6 text-center text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-900/40 dark:text-stone-300">
+              No entries match your search or status filter.
+            </p>
           ) : (
             <div className="mt-4 overflow-x-auto surface-card rounded-lg">
               <table className="min-w-full text-sm">
-                <thead className="border-b border-stone-200 bg-stone-50/90 text-left text-xs font-semibold uppercase tracking-[0.1em] text-stone-500">
+                <thead className="data-table-head data-table-head--sticky">
                   <tr>
                     {isSalonWide ? <th className="px-4 py-3">Guest</th> : null}
                     <th className="px-4 py-3">Service</th>
@@ -150,8 +215,8 @@ export default function WaitlistPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200/80">
-                  {rows.map((r) => (
-                    <tr key={r.id} className="bg-white/40">
+                  {visibleRows.map((r) => (
+                    <tr key={r.id} className="bg-[#f7f3ed]/80 dark:bg-stone-900/40">
                       {isSalonWide ? (
                         <td className="px-4 py-3">
                           <div className="font-medium text-stone-900">{r.user?.name}</div>
@@ -164,7 +229,7 @@ export default function WaitlistPage() {
                       <td className="px-4 py-3">
                         {isSalonWide ? (
                           <div className="flex flex-wrap gap-1">
-                            {(['contacted', 'fulfilled', 'cancelled'] as const).map((s) => (
+                            {STAFF_STATUS_ACTIONS.map((s) => (
                               <Button key={s} type="button" size="sm" variant="secondary" className="!px-2 !py-1 text-[10px]" onClick={() => void setStatus(r.id, s)}>
                                 {s}
                               </Button>

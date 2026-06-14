@@ -43,13 +43,19 @@ router.get(
     query('serviceId').notEmpty().withMessage('serviceId is required'),
     query('date').isDate().withMessage('Valid date is required (YYYY-MM-DD)'),
     query('staffId').optional().isUUID().withMessage('staffId must be a UUID'),
+    query('salonId').optional().isUUID().withMessage('salonId must be a UUID'),
   ],
   validate,
   appointmentController.getAvailableSlots
 );
 
 router.get('/export.csv', authorize('admin', 'staff'), appointmentController.exportAppointmentsCsv);
-router.get('/staff', appointmentController.listStaffForAssignment);
+router.get(
+  '/staff',
+  [query('salonId').optional().isUUID().withMessage('salonId must be a UUID')],
+  validate,
+  appointmentController.listStaffForAssignment
+);
 
 /**
  * @swagger

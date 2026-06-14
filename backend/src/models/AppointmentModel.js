@@ -45,7 +45,7 @@ export default (sequelize) => {
         allowNull: false,
       },
       status: {
-        type: DataTypes.ENUM('pending', 'confirmed', 'cancelled', 'completed'),
+        type: DataTypes.ENUM('pending', 'confirmed', 'cancelled', 'completed', 'no_show'),
         defaultValue: 'pending',
       },
       notes: {
@@ -85,6 +85,14 @@ export default (sequelize) => {
         allowNull: false,
         references: { model: 'salon_resources', key: 'id' },
       },
+      salonId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'marketplace_salons', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
+      },
+      extraServiceIds: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
     },
     {
       tableName: 'appointments',

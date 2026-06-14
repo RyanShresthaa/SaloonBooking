@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuthStore } from '@/store/authStore';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
@@ -15,6 +16,9 @@ const variants = {
   ghost: 'bg-transparent text-stone-700 hover:bg-stone-200/50 border border-transparent',
 };
 
+const customerPrimary =
+  'bg-stone-900 text-stone-50 border border-stone-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] hover:bg-stone-800 hover:border-stone-900 active:bg-stone-950 dark:bg-stone-100 dark:text-stone-900 dark:border-stone-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:hover:bg-white dark:hover:border-stone-200';
+
 const sizes = {
   sm: 'px-3.5 py-2 text-xs font-semibold tracking-wide',
   md: 'px-4 py-2.5 text-sm font-semibold',
@@ -30,10 +34,15 @@ export default function Button({
   className = '',
   ...props
 }: ButtonProps) {
+  const role = useAuthStore((s) => s.user?.role);
+  const salonDesk = role === 'admin' || role === 'staff';
+  const primaryClass =
+    variant === 'primary' ? (salonDesk ? variants.primary : customerPrimary) : variants[variant];
+
   return (
     <button
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-md font-sans transition-[color,background-color,border-color,box-shadow] duration-150 focus-ring disabled:pointer-events-none disabled:opacity-45 ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-md font-sans transition-[color,background-color,border-color,box-shadow,transform] duration-200 focus-ring disabled:pointer-events-none disabled:opacity-45 ${primaryClass} ${sizes[size]} ${className}`}
       {...props}
     >
       {loading && (

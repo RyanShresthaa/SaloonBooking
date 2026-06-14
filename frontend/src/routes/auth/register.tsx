@@ -114,9 +114,9 @@ export default function RegisterPage() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="surface-card rounded-lg p-8 sm:p-10">
+      <div className="surface-card rounded-lg p-8 transition-shadow hover:shadow-sm sm:p-10">
         <div className="mb-8 space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">New staff</p>
+          <p className="page-eyebrow">New account</p>
           <h1 className="text-3xl text-stone-900">Register</h1>
           <p className="text-sm text-stone-600">
             Already set up?{' '}
@@ -144,6 +144,8 @@ export default function RegisterPage() {
             type="password"
             placeholder="••••••••"
             error={errors.password?.message}
+            autoComplete="new-password"
+            passwordToggle
             {...register('password')}
           />
           <Button type="submit" loading={isSubmitting} className="mt-2 w-full">

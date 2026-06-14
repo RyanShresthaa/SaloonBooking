@@ -1,28 +1,47 @@
 import { RetailProduct } from '../models/Index.js';
 
 class RetailProductService {
-  async list(role) {
-    const salonWide = role === 'admin' || role === 'staff';
-    const where = salonWide ? {} : { isActive: true };
+  /**
+   * @param {string} role - JWT role
+   * @param {string|null} salonId - Staff/admin: their salon. Customers: resolved tenant (query or default).
+   */
+  async list(role, salonId = null) {
+    const roleNorm = String(role || '').toLowerCase();
+    const isDesk = roleNorm === 'admin' || roleNorm === 'staff';
+
+    if (!salonId) {
+      const error = new Error('Salon context required');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (!isDesk) {
+      return RetailProduct.findAll({
+        where: { salonId, isActive: true },
+        order: [['name', 'ASC']],
+      });
+    }
+
     return RetailProduct.findAll({
-      where,
+      where: { salonId },
       order: [['name', 'ASC']],
     });
   }
 
-  async create(data) {
+  async create(data, salonId) {
     return RetailProduct.create({
       name: data.name,
       description: data.description || null,
       price: data.price,
       stockQty: data.stockQty ?? 0,
       isActive: data.isActive !== false,
+      salonId,
     });
   }
 
-  async update(id, data) {
+  async update(id, data, salonId) {
     const row = await RetailProduct.findByPk(id);
-    if (!row) {
+    if (!row || String(row.salonId) !== String(salonId)) {
       const error = new Error('Product not found');
       error.statusCode = 404;
       throw error;
@@ -37,9 +56,9 @@ class RetailProductService {
     return row.reload();
   }
 
-  async remove(id) {
+  async remove(id, salonId) {
     const row = await RetailProduct.findByPk(id);
-    if (!row) {
+    if (!row || String(row.salonId) !== String(salonId)) {
       const error = new Error('Product not found');
       error.statusCode = 404;
       throw error;

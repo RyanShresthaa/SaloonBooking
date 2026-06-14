@@ -1,7 +1,8 @@
 import express from 'express';
-import { body } from 'express-validator';
+import { body, query } from 'express-validator';
 import * as serviceController from '../controllers/ServiceController.js';
 import { authenticate, authorize } from '../middlewares/AuthMiddleware.js';
+import { optionalAuthenticate } from '../middlewares/OptionalAuthMiddleware.js';
 import validate from '../middlewares/ValidateMiddleware.js';
 
 const router = express.Router();
@@ -24,7 +25,13 @@ const router = express.Router();
  *       200:
  *         description: List of services.
  */
-router.get('/', serviceController.listServices);
+router.get(
+  '/',
+  optionalAuthenticate,
+  [query('salonId').optional().isUUID().withMessage('salonId must be a UUID')],
+  validate,
+  serviceController.listServices
+);
 
 /**
  * @swagger
@@ -45,7 +52,13 @@ router.get('/', serviceController.listServices);
  *       404:
  *         description: Not found.
  */
-router.get('/:id', serviceController.getService);
+router.get(
+  '/:id',
+  optionalAuthenticate,
+  [query('salonId').optional().isUUID().withMessage('salonId must be a UUID')],
+  validate,
+  serviceController.getService
+);
 
 router.use(authenticate, authorize('admin'));
 

@@ -14,7 +14,12 @@ router.post(
   '/',
   [
     body('appointmentId').notEmpty().withMessage('appointmentId is required'),
-    body('rating').isInt({ min: 1, max: 5 }).withMessage('rating must be 1–5'),
+    body('rating')
+      .custom((value) => {
+        const n = typeof value === 'string' ? parseInt(value, 10) : Number(value);
+        return Number.isInteger(n) && n >= 1 && n <= 5;
+      })
+      .withMessage('rating must be 1–5'),
     body('comment').optional().isString(),
   ],
   validate,
@@ -25,7 +30,13 @@ router.patch(
   '/:id',
   [
     param('id').isUUID().withMessage('Invalid feedback id'),
-    body('rating').optional().isInt({ min: 1, max: 5 }).withMessage('rating must be 1–5'),
+    body('rating')
+      .optional()
+      .custom((value) => {
+        const n = typeof value === 'string' ? parseInt(value, 10) : Number(value);
+        return Number.isInteger(n) && n >= 1 && n <= 5;
+      })
+      .withMessage('rating must be 1–5'),
     body('comment').optional({ nullable: true }).isString(),
   ],
   validate,

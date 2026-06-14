@@ -12,7 +12,13 @@ export default (sequelize) => {
       name: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
+      },
+      salonId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'marketplace_salons', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
       },
       subject: {
         type: DataTypes.STRING,
@@ -35,6 +41,9 @@ export default (sequelize) => {
     {
       tableName: 'notification_templates',
       timestamps: true,
+      indexes: [
+        { unique: true, fields: ['salonId', 'name'], name: 'notification_templates_salon_id_name_unique' },
+      ],
     }
   );
 

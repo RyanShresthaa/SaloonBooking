@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import dayjs from 'dayjs';
+import { Search, Star } from 'lucide-react';
 import { listAppointments } from '@/lib/api/appointments';
 import { listVisitFeedback, createVisitFeedback, updateVisitFeedback, deleteVisitFeedback } from '@/lib/api/visitFeedback';
 import AuthGuard from '@/components/layout/AuthGuard';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
+
+// ─── Types ───
 
 type Appt = {
   id: string;
@@ -27,6 +30,8 @@ type FeedbackRow = {
   user?: { name?: string; email?: string };
 };
 
+// ─── Helpers ───
+
 function formatTimeForParse(t: string | undefined): string {
   if (t == null || t === '') return '00:00:00';
   if (typeof t === 'string') {
@@ -37,15 +42,53 @@ function formatTimeForParse(t: string | undefined): string {
   return dayjs(t).format('HH:mm:ss');
 }
 
-/** Matches server: after visit end, or staff marked completed. */
+/** Mirrors server rules for when a guest may leave a review. */
 function appointmentEligibleForReview(a: Appt): boolean {
   if (a.status === 'cancelled') return false;
   if (a.status === 'completed') return true;
   if (a.status !== 'pending' && a.status !== 'confirmed') return false;
-  const endStr = formatTimeForParse(a.endTime ?? a.startTime);
-  const visitEnd = dayjs(`${a.appointmentDate} ${endStr}`);
+  const today = dayjs().format('YYYY-MM-DD');
+  const apptDay = dayjs(a.appointmentDate).format('YYYY-MM-DD');
+  if (apptDay < today) return true;
+  const endStr = formatTimeForParse(a.endTime);
+  const visitEnd = dayjs(`${apptDay} ${endStr}`);
   return !dayjs().isBefore(visitEnd);
 }
+
+// ─── Components ───
+
+function StarRatingPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={`Rating ${value} of 5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          aria-label={`Set rating to ${n} of 5`}
+          aria-pressed={value >= n}
+          disabled={disabled}
+          className={`rounded-md p-1 transition hover:scale-105 focus-ring disabled:opacity-40 ${
+            value >= n ? 'text-amber-400' : 'text-stone-300 dark:text-stone-600'
+          }`}
+          onClick={() => onChange(n)}
+        >
+          <Star className="h-8 w-8 sm:h-9 sm:w-9" fill={value >= n ? 'currentColor' : 'transparent'} strokeWidth={1.35} aria-hidden />
+        </button>
+      ))}
+      <span className="ml-2 text-sm font-medium text-stone-600 dark:text-stone-300">{value} / 5</span>
+    </div>
+  );
+}
+
+// ─── Exports ───
 
 export default function ReviewsPage() {
   const { user } = useAuthStore();
@@ -58,6 +101,7 @@ export default function ReviewsPage() {
   const [editRating, setEditRating] = useState(5);
   const [editComment, setEditComment] = useState('');
   const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [feedbackSearch, setFeedbackSearch] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -72,7 +116,9 @@ export default function ReviewsPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => {
+      load();
+    });
   }, [load]);
 
   const reviewedIds = useMemo(() => new Set(feedback.map((f) => f.appointmentId)), [feedback]);
@@ -82,10 +128,10 @@ export default function ReviewsPage() {
       !isSalonWide
         ? appointments.filter((a) => appointmentEligibleForReview(a) && !reviewedIds.has(a.id))
         : [],
-    [appointments, reviewedIds, isSalonWide]
+    [appointments, reviewedIds, isSalonWide],
   );
 
-  const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<{
+  const { register, handleSubmit, reset, control, formState: { isSubmitting } } = useForm<{
     appointmentId: string;
     rating: number;
     comment: string;
@@ -150,13 +196,31 @@ export default function ReviewsPage() {
     }
   };
 
+  const displayedFeedback = useMemo(() => {
+    const arr = [...feedback];
+    arr.sort((a, b) => {
+      const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return db - da;
+    });
+    const s = feedbackSearch.trim().toLowerCase();
+    if (!s) return arr;
+    return arr.filter((f) => {
+      const blob = [f.comment, f.user?.name, f.user?.email, f.appointment?.service?.name, String(f.rating)]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return blob.includes(s);
+    });
+  }, [feedback, feedbackSearch]);
+
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-5xl space-y-10">
-        <header className="border-b border-stone-300/50 pb-8 dark:border-stone-600/50">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Voice</p>
-          <h1 className="font-display text-3xl text-stone-900 dark:text-stone-50 sm:text-4xl">Visit reviews</h1>
-          <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
+      <div className="page-shell-spacious">
+        <header className="page-header">
+          <p className="page-eyebrow">Voice</p>
+          <h1 className="page-title">Visit reviews</h1>
+          <p className="page-lede">
             {isSalonWide
               ? 'Recent feedback left by guests after their appointments.'
               : 'Add a review after your visit ends. You can edit or remove your reviews anytime.'}
@@ -170,7 +234,7 @@ export default function ReviewsPage() {
         ) : null}
 
         {!isSalonWide ? (
-          <section className="surface-card rounded-lg p-6 sm:p-8">
+          <section className="surface-card rounded-lg p-6 sm:p-8" aria-label="Add a review">
             <h2 className="font-display text-xl text-stone-900 dark:text-stone-50">Add a review</h2>
             <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
               Choose a visit that has already finished (or was marked completed). One review per booking.
@@ -183,7 +247,7 @@ export default function ReviewsPage() {
             ) : (
               <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  <label className="section-label">
                     Visit
                   </label>
                   <select
@@ -198,23 +262,20 @@ export default function ReviewsPage() {
                     ))}
                   </select>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
-                    Rating (1–5)
-                  </label>
-                  <select
-                    className="rounded-md border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 focus-ring dark:border-stone-600 dark:bg-stone-950 dark:text-stone-100"
-                    {...register('rating', { valueAsNumber: true })}
-                  >
-                    {[5, 4, 3, 2, 1].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-col gap-2">
+                  <span className="section-label">
+                    Rating
+                  </span>
+                  <Controller
+                    name="rating"
+                    control={control}
+                    render={({ field }) => (
+                      <StarRatingPicker value={field.value} onChange={field.onChange} />
+                    )}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                  <label className="section-label">
                     Comment (optional)
                   </label>
                   <textarea
@@ -231,19 +292,38 @@ export default function ReviewsPage() {
           </section>
         ) : null}
 
-        <section>
-          <h2 className="font-display text-xl text-stone-900 dark:text-stone-50">
-            {isSalonWide ? 'All feedback' : 'Your reviews'}
-          </h2>
+        <section aria-label={isSalonWide ? 'All feedback' : 'Your reviews'}>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <h2 className="font-display text-xl text-stone-900 dark:text-stone-50">
+              {isSalonWide ? 'All feedback' : 'Your reviews'}
+            </h2>
+            {feedback.length > 0 ? (
+              <div className="relative w-full max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400 dark:text-stone-500" aria-hidden />
+                <input
+                  type="search"
+                  value={feedbackSearch}
+                  onChange={(e) => setFeedbackSearch(e.target.value)}
+                  placeholder="Search comment, guest, service, rating…"
+                  className="w-full rounded-md border border-stone-300 bg-[#fffefb] py-2 pl-9 pr-3 text-sm text-stone-900 focus-ring dark:border-stone-600 dark:bg-stone-950 dark:text-stone-100"
+                  aria-label="Search reviews"
+                />
+              </div>
+            ) : null}
+          </div>
           {loading ? (
-            <div className="mt-6 flex justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800 dark:border-stone-600 dark:border-t-stone-200" />
+            <div className="mt-6 flex justify-center py-12" role="status" aria-label="Loading reviews">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800 dark:border-stone-600 dark:border-t-stone-200" aria-hidden />
             </div>
           ) : feedback.length === 0 ? (
             <p className="mt-4 text-sm text-stone-600 dark:text-stone-400">No reviews yet.</p>
+          ) : displayedFeedback.length === 0 ? (
+            <p className="mt-4 rounded-lg border border-stone-200/80 bg-[#faf7f2] px-4 py-6 text-center text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-900/40 dark:text-stone-300">
+              No reviews match your search.
+            </p>
           ) : (
             <ul className="mt-4 space-y-3">
-              {feedback.map((f) => (
+              {displayedFeedback.map((f) => (
                 <li key={f.id} className="surface-card rounded-lg p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="font-medium text-stone-900 dark:text-stone-50">{f.rating}/5</span>
@@ -262,24 +342,18 @@ export default function ReviewsPage() {
                   )}
                   {editingId === f.id ? (
                     <div className="mt-4 space-y-3 border-t border-stone-200 pt-4 dark:border-stone-700">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      <div className="flex flex-col gap-2">
+                        <span className="section-label">
                           Rating
-                        </label>
-                        <select
-                          className="rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus-ring dark:border-stone-600 dark:bg-stone-950 dark:text-stone-100"
+                        </span>
+                        <StarRatingPicker
                           value={editRating}
-                          onChange={(e) => setEditRating(Number(e.target.value))}
-                        >
-                          {[5, 4, 3, 2, 1].map((n) => (
-                            <option key={n} value={n}>
-                              {n}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={setEditRating}
+                          disabled={rowBusy === f.id}
+                        />
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                        <label className="section-label">
                           Comment
                         </label>
                         <textarea
@@ -290,7 +364,7 @@ export default function ReviewsPage() {
                         />
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" loading={rowBusy === f.id} onClick={() => saveEdit(f.id)}>
+                        <Button type="button" size="sm" loading={rowBusy === f.id} onClick={() => void saveEdit(f.id)}>
                           Save changes
                         </Button>
                         <Button type="button" size="sm" variant="secondary" disabled={rowBusy === f.id} onClick={cancelEdit}>
@@ -316,7 +390,7 @@ export default function ReviewsPage() {
                             variant="secondary"
                             disabled={rowBusy === f.id}
                             loading={rowBusy === f.id}
-                            onClick={() => removeReview(f.id)}
+                            onClick={() => void removeReview(f.id)}
                           >
                             Remove
                           </Button>

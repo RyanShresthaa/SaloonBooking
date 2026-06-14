@@ -25,7 +25,7 @@ export default (sequelize) => {
         allowNull: false,
       },
       role: {
-        type: DataTypes.ENUM('admin', 'staff', 'customer'),
+        type: DataTypes.ENUM('super_admin', 'admin', 'staff', 'customer'),
         defaultValue: 'customer',
       },
       isEmailVerified: {
@@ -68,6 +68,18 @@ export default (sequelize) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+      salonId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'marketplace_salons', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      },
+      bannedAt: { type: DataTypes.DATE, allowNull: true },
+      profilePhotoUrl: { type: DataTypes.TEXT, allowNull: true },
+      staffBio: { type: DataTypes.TEXT, allowNull: true },
+      skills: { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+      yearsExperience: { type: DataTypes.SMALLINT, allowNull: true },
     },
     {
       tableName: 'users',

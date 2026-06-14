@@ -1,7 +1,8 @@
-import { Op } from 'sequelize';
+import { Op, Sequelize } from 'sequelize';
 import dayjs from 'dayjs';
 import { Appointment, Service, User, sequelize, StaffTimeOff } from '../models/Index.js';
 import auditService from './AuditService.js';
+import env from '../config/Env.js';
 import { emitAppointmentUpdated } from '../sockets/Index.js';
 import { blockedInterval, intervalsOverlap } from '../utils/schedulingEngine.js';
 
@@ -11,13 +12,16 @@ const BREAK_END = '14:00';
 const BUSINESS_START = '09:00';
 const BUSINESS_END = '18:00';
 
-const CUSTOMER_CANCEL_MIN_HOURS = 24;
-const CUSTOMER_RESCHEDULE_MIN_HOURS = 48;
 
 class AppointmentService {
-  async getAvailableSlots(serviceId, date, staffId = null) {
+  async getAvailableSlots(serviceId, date, staffId = null, salonScopeId = null) {
     const service = await Service.findByPk(serviceId);
     if (!service) {
+      const error = new Error('Service not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (salonScopeId && String(service.salonId) !== String(salonScopeId)) {
       const error = new Error('Service not found');
       error.statusCode = 404;
       throw error;
@@ -40,8 +44,13 @@ class AppointmentService {
       if (off) {
         return { service, date, slots: [] };
       }
-      const u = await User.findByPk(staffId, { attributes: ['id', 'role'] });
+      const u = await User.findByPk(staffId, { attributes: ['id', 'role', 'salonId'] });
       if (!u || !['admin', 'staff'].includes(String(u.role || '').toLowerCase())) {
+        const error = new Error('Invalid staff member');
+        error.statusCode = 400;
+        throw error;
+      }
+      if (salonScopeId && String(u.salonId || '') !== String(salonScopeId)) {
         const error = new Error('Invalid staff member');
         error.statusCode = 400;
         throw error;
@@ -50,6 +59,7 @@ class AppointmentService {
 
     const existingAppointments = await Appointment.findAll({
       where: {
+        salonId: service.salonId,
         resourceId: service.resourceId,
         appointmentDate: date,
         status: { [Op.notIn]: ['cancelled'] },
@@ -61,6 +71,7 @@ class AppointmentService {
     if (staffId) {
       staffAppointments = await Appointment.findAll({
         where: {
+          salonId: service.salonId,
           assignedStaffId: staffId,
           appointmentDate: date,
           status: { [Op.notIn]: ['cancelled'] },
@@ -112,11 +123,16 @@ class AppointmentService {
     return { service, date, slots };
   }
 
-  async _validateAssignedStaff(assignedStaffId) {
+  async _validateAssignedStaff(assignedStaffId, salonId = null) {
     if (!assignedStaffId) return;
-    const u = await User.findByPk(assignedStaffId, { attributes: ['id', 'role'] });
+    const u = await User.findByPk(assignedStaffId, { attributes: ['id', 'role', 'salonId'] });
     if (!u || !['admin', 'staff'].includes(String(u.role || '').toLowerCase())) {
       const error = new Error('Assigned staff must be a salon admin or staff member');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (salonId && String(u.salonId || '') !== String(salonId)) {
+      const error = new Error('Assigned staff must belong to this salon');
       error.statusCode = 400;
       throw error;
     }
@@ -158,6 +174,7 @@ class AppointmentService {
 
     const existing = await Appointment.findAll({
       where: {
+        salonId: serviceForBuffers.salonId,
         resourceId,
         appointmentDate,
         status: { [Op.notIn]: ['cancelled'] },
@@ -202,6 +219,7 @@ class AppointmentService {
 
     const others = await Appointment.findAll({
       where: {
+        salonId: serviceForBuffers.salonId,
         assignedStaffId: staffUserId,
         appointmentDate,
         status: { [Op.notIn]: ['cancelled'] },
@@ -228,6 +246,8 @@ class AppointmentService {
   async createAppointment({
     userId,
     actorUserId,
+    actorRole,
+    actorSalonId,
     serviceId,
     customerName,
     customerEmail,
@@ -246,8 +266,16 @@ class AppointmentService {
       error.statusCode = 404;
       throw error;
     }
+    const roleNorm = String(actorRole || '').toLowerCase();
+    if ((roleNorm === 'admin' || roleNorm === 'staff') && actorSalonId) {
+      if (String(service.salonId) !== String(actorSalonId)) {
+        const error = new Error('Service does not belong to your salon');
+        error.statusCode = 403;
+        throw error;
+      }
+    }
 
-    await this._validateAssignedStaff(assignedStaffId);
+    await this._validateAssignedStaff(assignedStaffId, service.salonId);
 
     const { endTime } = this._assertWithinBusinessHours(appointmentDate, startTime, service.duration);
     await this._assertResourceAvailable({
@@ -270,6 +298,7 @@ class AppointmentService {
     const appointment = await Appointment.create({
       userId,
       serviceId,
+      salonId: service.salonId,
       customerName,
       customerEmail,
       customerPhone,
@@ -296,10 +325,25 @@ class AppointmentService {
     return appointment;
   }
 
-  async listAppointments(userId, role) {
+  async listAppointments(userId, role, salonId = null) {
     const roleNorm = String(role || '').toLowerCase();
     const salonWide = roleNorm === 'admin' || roleNorm === 'staff';
-    const where = salonWide ? {} : { userId };
+    let where = {};
+    if (salonWide && salonId) {
+      where.salonId = salonId;
+    }
+    if (!salonWide) {
+      const customer = await User.findByPk(userId, { attributes: ['email'] });
+      const emailNorm = customer?.email?.trim().toLowerCase();
+      where = emailNorm
+        ? {
+            [Op.or]: [
+              { userId },
+              Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('customerEmail')), emailNorm),
+            ],
+          }
+        : { userId };
+    }
     return Appointment.findAll({
       where,
       include: [
@@ -319,22 +363,33 @@ class AppointmentService {
     });
   }
 
-  async listStaffAssignees() {
+  async listStaffAssignees(salonId) {
+    if (!salonId) {
+      const error = new Error('Salon context required');
+      error.statusCode = 400;
+      throw error;
+    }
     return User.findAll({
-      where: { role: { [Op.in]: ['admin', 'staff'] } },
+      where: { role: { [Op.in]: ['admin', 'staff'] }, salonId },
       attributes: ['id', 'name', 'email', 'role', 'speciality'],
       order: [['name', 'ASC']],
     });
   }
 
-  async exportAppointmentsCsv(userId, role) {
+  async exportAppointmentsCsv(userId, role, salonId = null) {
     const roleNorm = String(role || '').toLowerCase();
     if (roleNorm !== 'admin' && roleNorm !== 'staff') {
       const error = new Error('Only salon staff can export appointments');
       error.statusCode = 403;
       throw error;
     }
+    if (!salonId) {
+      const error = new Error('Salon context required');
+      error.statusCode = 400;
+      throw error;
+    }
     const rows = await Appointment.findAll({
+      where: { salonId },
       include: [
         { association: 'service', attributes: ['name'] },
         { association: 'user', attributes: ['name', 'email'] },
@@ -384,7 +439,16 @@ class AppointmentService {
     return `${header}\n${lines.join('\n')}\n`;
   }
 
-  async getAppointment(id, userId, role) {
+  async _customerEmailMatchesUser(userId, customerEmail) {
+    const user = await User.findByPk(userId, { attributes: ['email'] });
+    const u = user?.email?.trim().toLowerCase();
+    const a = String(customerEmail || '')
+      .trim()
+      .toLowerCase();
+    return Boolean(u && a && u === a);
+  }
+
+  async getAppointment(id, userId, role, salonId = null) {
     const appointment = await Appointment.findByPk(id, {
       include: [
         { association: 'service' },
@@ -398,16 +462,26 @@ class AppointmentService {
       throw error;
     }
     const roleNorm = String(role || '').toLowerCase();
+    if ((roleNorm === 'admin' || roleNorm === 'staff') && salonId) {
+      if (String(appointment.salonId) !== String(salonId)) {
+        const error = new Error('Appointment not found');
+        error.statusCode = 404;
+        throw error;
+      }
+    }
     if (roleNorm === 'customer' && appointment.userId !== userId) {
-      const error = new Error('You are not authorized to view this appointment');
-      error.statusCode = 403;
-      throw error;
+      const emailOk = await this._customerEmailMatchesUser(userId, appointment.customerEmail);
+      if (!emailOk) {
+        const error = new Error('You are not authorized to view this appointment');
+        error.statusCode = 403;
+        throw error;
+      }
     }
     return appointment;
   }
 
-  async updateAppointment(id, userId, role, updates) {
-    const appointment = await this.getAppointment(id, userId, role);
+  async updateAppointment(id, userId, role, updates, salonId = null) {
+    const appointment = await this.getAppointment(id, userId, role, salonId);
 
     const roleNorm = String(role || '').toLowerCase();
     const payload = { ...updates };
@@ -423,9 +497,15 @@ class AppointmentService {
       const wantsReschedule = payload.appointmentDate != null || payload.startTime != null;
       if (wantsReschedule) {
         const hours = this._hoursUntilAppointment(appointment.appointmentDate, appointment.startTime);
-        if (hours < CUSTOMER_RESCHEDULE_MIN_HOURS) {
+        const minResched = env.customerRescheduleMinHours;
+        if (hours <= 0) {
+          const error = new Error('This visit time has already passed. Contact the salon to make changes.');
+          error.statusCode = 400;
+          throw error;
+        }
+        if (minResched > 0 && hours < minResched) {
           const error = new Error(
-            `Reschedule at least ${CUSTOMER_RESCHEDULE_MIN_HOURS} hours before your visit, or call the salon.`
+            `Reschedule at least ${minResched} hours before your visit, or call the salon.`
           );
           error.statusCode = 400;
           throw error;
@@ -441,7 +521,7 @@ class AppointmentService {
     }
 
     if (payload.assignedStaffId !== undefined) {
-      await this._validateAssignedStaff(payload.assignedStaffId || null);
+      await this._validateAssignedStaff(payload.assignedStaffId || null, appointment.salonId);
     }
 
     const prevStatus = appointment.status;
@@ -540,20 +620,31 @@ class AppointmentService {
     return reloaded;
   }
 
-  async cancelAppointment(id, userId, role) {
-    const appointment = await this.getAppointment(id, userId, role);
+  async cancelAppointment(id, userId, role, salonId = null) {
+    const appointment = await this.getAppointment(id, userId, role, salonId);
     const roleNorm = String(role || '').toLowerCase();
 
     if (roleNorm === 'customer') {
       if (!['pending', 'confirmed'].includes(appointment.status)) {
-        const error = new Error('This visit cannot be cancelled online');
+        const st = String(appointment.status || 'unknown');
+        const error = new Error(
+          `This visit (${st}) cannot be cancelled online. Call the salon if you need help.`
+        );
         error.statusCode = 400;
         throw error;
       }
       const hours = this._hoursUntilAppointment(appointment.appointmentDate, appointment.startTime);
-      if (hours < CUSTOMER_CANCEL_MIN_HOURS) {
+      if (hours <= 0) {
         const error = new Error(
-          `Cancel at least ${CUSTOMER_CANCEL_MIN_HOURS} hours before your visit, or call the salon.`
+          'This visit is in the past or has already started. Contact the salon if you still need to cancel or adjust.'
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+      const minCancel = env.customerCancelMinHours;
+      if (minCancel > 0 && hours < minCancel) {
+        const error = new Error(
+          `Cancel at least ${minCancel} hours before your visit, or call the salon.`
         );
         error.statusCode = 400;
         throw error;

@@ -1,6 +1,6 @@
 import * as xlsx from 'xlsx';
 import { v4 as uuidv4 } from 'uuid';
-import { Sequelize, QueryTypes } from 'sequelize';
+import { Sequelize, QueryTypes, Op } from 'sequelize';
 import {
   NotificationLog,
   NotificationTemplate,
@@ -17,6 +17,56 @@ import {
 import { getIO } from '../sockets/Index.js';
 import { sendEmail, renderAppointmentEmail } from '../utils/emailHelper.js';
 
+// ─── Constants ───
+
+const QUEUE_ADD_TIMEOUT_MS = 5000;
+const QUEUE_ADD_TIMEOUT_MESSAGE = 'Notification queue timeout. Check Redis connection.';
+const BULK_BATCH_HISTORY_LIMIT = 50;
+const HTTP_ACCEPTED = 202;
+const DEFAULT_CUSTOMER_PLACEHOLDER = 'Valued Customer';
+const ROLE_ADMIN = 'admin';
+const ROLE_STAFF = 'staff';
+const ROLE_SUPER_ADMIN = 'super_admin';
+
+// ─── Helpers ───
+
+/** Salon that owns this log (appointment wins; else template). */
+const resolveLogSalonId = async (log) => {
+  if (log.appointmentId) {
+    const appt = await Appointment.findByPk(log.appointmentId, { attributes: ['salonId'] });
+    if (appt?.salonId) return appt.salonId;
+  }
+  if (log.templateId) {
+    const t = await NotificationTemplate.findByPk(log.templateId, { attributes: ['salonId'] });
+    if (t?.salonId) return t.salonId;
+  }
+  return null;
+};
+
+/**
+ * Approve / decline / mark-finished / approve-all / reminder: only that salon's desk (not platform super_admin).
+ * @returns {string|null} Forbidden reason, or null if allowed.
+ */
+const getSalonModerationBlockReason = (req, salonId) => {
+  const roleNorm = String(req.user.role || '').toLowerCase();
+  if (roleNorm === ROLE_SUPER_ADMIN) {
+    return 'Platform administrators cannot approve, decline, or finish booking notifications for salons.';
+  }
+  if (roleNorm !== ROLE_ADMIN && roleNorm !== ROLE_STAFF) {
+    return 'Only salon desk staff can perform this action.';
+  }
+  if (!req.user.salonId) {
+    return 'Your account is not linked to a salon.';
+  }
+  if (!salonId) {
+    return 'Cannot determine which salon this message belongs to.';
+  }
+  if (String(req.user.salonId) !== String(salonId)) {
+    return 'You can only manage notifications for your own salon.';
+  }
+  return null;
+};
+
 const withTimeout = (promise, timeoutMs, timeoutMessage) => {
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
@@ -29,7 +79,7 @@ const emitNotificationUpdate = (payload) => {
   try {
     getIO().emit('notification:update', payload);
   } catch {
-    /* socket may be unavailable */
+    // Socket may be unavailable (e.g. unit tests without IO).
   }
 };
 
@@ -49,7 +99,7 @@ const logPassesVipApprovalRules = async (log) => {
  */
 const addLogToQueue = async (log) => {
   const appointmentData = log.appointmentData || {
-    customerName: 'Valued Customer',
+    customerName: DEFAULT_CUSTOMER_PLACEHOLDER,
     serviceName: '',
     date: '',
     time: '',
@@ -64,8 +114,8 @@ const addLogToQueue = async (log) => {
       batchId: log.batchId,
       appointmentData,
     }),
-    5000,
-    'Notification queue timeout. Check Redis connection.'
+    QUEUE_ADD_TIMEOUT_MS,
+    QUEUE_ADD_TIMEOUT_MESSAGE
   );
 
   await log.update({ status: 'queued', jobId: String(job.id) });
@@ -77,6 +127,8 @@ const addLogToQueue = async (log) => {
   });
   return log.reload();
 };
+
+// ─── Handlers ───
 
 const bulkNotify = async (req, res, next) => {
   try {
@@ -127,7 +179,7 @@ const bulkNotify = async (req, res, next) => {
           appointmentId: appointment.id,
           errorMessage: 'Email in file does not match linked appointment',
           appointmentData: {
-            customerName: customerName || appointment.customerName || 'Valued Customer',
+            customerName: customerName || appointment.customerName || DEFAULT_CUSTOMER_PLACEHOLDER,
             serviceName: serviceName || appointment.service?.name || '',
             date: date || appointment.appointmentDate || '',
             time: time || appointment.startTime || '',
@@ -149,7 +201,7 @@ const bulkNotify = async (req, res, next) => {
           errorMessage:
             'VIP-only template: add appointmentId for a booking where the customer selected VIP at booking time.',
           appointmentData: {
-            customerName: customerName || appointment?.customerName || 'Valued Customer',
+            customerName: customerName || appointment?.customerName || DEFAULT_CUSTOMER_PLACEHOLDER,
             serviceName: serviceName || appointment?.service?.name || '',
             date: date || appointment?.appointmentDate || '',
             time: time || appointment?.startTime || '',
@@ -162,7 +214,7 @@ const bulkNotify = async (req, res, next) => {
 
       const isVip = Boolean(appointment?.isVip);
       const appointmentData = {
-        customerName: appointment?.customerName || customerName || 'Valued Customer',
+        customerName: appointment?.customerName || customerName || DEFAULT_CUSTOMER_PLACEHOLDER,
         serviceName: appointment?.service?.name || serviceName || '',
         date: appointment?.appointmentDate || date || '',
         time: appointment?.startTime || time || '',
@@ -181,7 +233,7 @@ const bulkNotify = async (req, res, next) => {
       pendingApproval += 1;
     }
 
-    return res.status(202).json({
+    return res.status(HTTP_ACCEPTED).json({
       success: true,
       message: `${pendingApproval} message(s) await admin approval.${
         autoDeclined ? ` ${autoDeclined} row(s) were declined automatically (VIP rules or email mismatch).` : ''
@@ -201,10 +253,6 @@ const bulkNotify = async (req, res, next) => {
 
 const sendReminderEmail = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return sendForbidden(res, 'Only admins can send reminder emails from templates');
-    }
-
     const { appointmentId, templateId } = req.body;
     if (!appointmentId || !templateId) {
       return sendBadRequest(res, 'appointmentId and templateId are required');
@@ -215,8 +263,14 @@ const sendReminderEmail = async (req, res, next) => {
     });
     if (!appointment) return sendNotFound(res, 'Appointment not found');
 
+    const block = getSalonModerationBlockReason(req, appointment.salonId);
+    if (block) return sendForbidden(res, block);
+
     const template = await NotificationTemplate.findByPk(templateId);
     if (!template || !template.isActive) return sendNotFound(res, 'Template not found');
+    if (String(template.salonId) !== String(appointment.salonId)) {
+      return sendBadRequest(res, 'This template does not belong to the same salon as the appointment.');
+    }
 
     if (template.requiresVip && !appointment.isVip) {
       return sendBadRequest(
@@ -260,12 +314,11 @@ const sendReminderEmail = async (req, res, next) => {
 
 const markBookingFinished = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return sendForbidden(res, 'Only admins can mark booking follow-up as finished');
-    }
-
     const log = await NotificationLog.findByPk(req.params.id);
     if (!log) return sendNotFound(res, 'Log not found');
+    const salonId = await resolveLogSalonId(log);
+    const block = getSalonModerationBlockReason(req, salonId);
+    if (block) return sendForbidden(res, block);
     if (!log.appointmentId) {
       return sendBadRequest(res, 'This notification is not linked to a booking');
     }
@@ -295,7 +348,40 @@ const listBulkBatches = async (req, res, next) => {
   try {
     const role = req.user.role;
     const userEmail = (req.user.email || '').trim().toLowerCase();
-    const salonWide = role === 'admin' || role === 'staff';
+    const roleNorm = String(role || '').toLowerCase();
+    const isSuperAdmin = roleNorm === ROLE_SUPER_ADMIN;
+    const userSalonId = req.user.salonId;
+    const isSalonDesk = (roleNorm === ROLE_ADMIN || roleNorm === ROLE_STAFF) && userSalonId;
+    const isLegacyGlobalAdmin = roleNorm === ROLE_ADMIN && !userSalonId;
+
+    if (isSuperAdmin) {
+      return sendSuccess(res, [], 'Bulk batch history retrieved');
+    }
+
+    let batchScopeSql = '';
+    const bind = [];
+    if (isLegacyGlobalAdmin) {
+      batchScopeSql = '';
+    } else if (isSalonDesk) {
+      batchScopeSql = `AND nl."batchId" IN (
+        SELECT DISTINCT nl3."batchId" FROM notification_logs nl3
+        LEFT JOIN appointments a ON a.id = nl3."appointmentId"
+        LEFT JOIN notification_templates t ON t.id = nl3."templateId"
+        WHERE (a."salonId" = $1 OR t."salonId" = $1)
+      )`;
+      bind.push(userSalonId);
+    } else {
+      if (!userEmail) {
+        return sendSuccess(res, [], 'Bulk batch history retrieved');
+      }
+      batchScopeSql = `AND nl."batchId" IN (
+        SELECT DISTINCT nl2."batchId"
+        FROM notification_logs nl2
+        WHERE nl2."batchId" IS NOT NULL
+          AND LOWER(TRIM(nl2."recipientEmail")) = $1
+      )`;
+      bind.push(userEmail);
+    }
 
     const aggregateSql = `
       SELECT nl."batchId",
@@ -307,23 +393,14 @@ const listBulkBatches = async (req, res, next) => {
              COALESCE(SUM(CASE WHEN nl.status IN ('queued', 'processing', 'pending_approval') THEN 1 ELSE 0 END), 0)::int AS "pending"
       FROM notification_logs nl
       WHERE nl."batchId" IS NOT NULL
-      ${salonWide ? '' : `AND nl."batchId" IN (
-        SELECT DISTINCT nl2."batchId"
-        FROM notification_logs nl2
-        WHERE nl2."batchId" IS NOT NULL
-          AND LOWER(TRIM(nl2."recipientEmail")) = $1
-      )`}
+      ${batchScopeSql}
       GROUP BY nl."batchId"
       ORDER BY MIN(nl."createdAt") DESC
-      LIMIT 50
+      LIMIT ${BULK_BATCH_HISTORY_LIMIT}
     `;
 
-    if (!salonWide && !userEmail) {
-      return sendSuccess(res, [], 'Bulk batch history retrieved');
-    }
-
     const rows = await sequelize.query(aggregateSql, {
-      bind: salonWide ? [] : [userEmail],
+      bind,
       type: QueryTypes.SELECT,
     });
 
@@ -338,6 +415,15 @@ const getLogs = async (req, res, next) => {
     const { batchId } = req.query;
     const role = req.user.role;
     const userEmail = (req.user.email || '').trim().toLowerCase();
+    const roleNorm = String(role || '').toLowerCase();
+    const isSuperAdmin = roleNorm === ROLE_SUPER_ADMIN;
+    const userSalonId = req.user.salonId;
+    const isSalonDesk = (roleNorm === ROLE_ADMIN || roleNorm === ROLE_STAFF) && userSalonId;
+    const isLegacyGlobalAdmin = roleNorm === ROLE_ADMIN && !userSalonId;
+
+    if (isSuperAdmin) {
+      return sendSuccess(res, [], 'Notification logs retrieved');
+    }
 
     const where = {};
 
@@ -345,13 +431,13 @@ const getLogs = async (req, res, next) => {
       where.batchId = batchId;
     }
 
-    const isAdmin = role === 'admin';
-    const isStaff = role === 'staff';
-
-    if (isAdmin) {
-      // admins: all logs (optional batchId filter only)
-    } else if (isStaff && batchId) {
-      // staff: full batch for bulk-send progress UI
+    if (isLegacyGlobalAdmin) {
+      // Single-tenant / bootstrap: admin with no salonId sees all logs.
+    } else if (isSalonDesk) {
+      where[Op.or] = [
+        { '$appointment.salonId$': userSalonId },
+        { '$template.salonId$': userSalonId },
+      ];
     } else {
       if (!userEmail) {
         return sendSuccess(res, [], 'Notification logs retrieved');
@@ -367,11 +453,11 @@ const getLogs = async (req, res, next) => {
     const logs = await NotificationLog.findAll({
       where,
       include: [
-        { association: 'template', attributes: ['id', 'name', 'subject', 'requiresVip'] },
+        { association: 'template', attributes: ['id', 'name', 'subject', 'requiresVip', 'salonId'] },
         {
           association: 'appointment',
           required: false,
-          attributes: ['id', 'appointmentDate', 'startTime', 'status', 'isVip', 'customerName'],
+          attributes: ['id', 'appointmentDate', 'startTime', 'status', 'isVip', 'customerName', 'salonId'],
           include: [{ association: 'service', attributes: ['name'] }],
         },
         {
@@ -381,6 +467,7 @@ const getLogs = async (req, res, next) => {
         },
       ],
       order,
+      subQuery: false,
     });
 
     return sendSuccess(res, logs, 'Notification logs retrieved');
@@ -391,12 +478,11 @@ const getLogs = async (req, res, next) => {
 
 const approveNotificationLog = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return sendForbidden(res, 'Only admins can approve bulk messages');
-    }
-
     const log = await NotificationLog.findByPk(req.params.id);
     if (!log) return sendNotFound(res, 'Log not found');
+    const salonId = await resolveLogSalonId(log);
+    const block = getSalonModerationBlockReason(req, salonId);
+    if (block) return sendForbidden(res, block);
     if (log.status !== 'pending_approval') {
       return sendBadRequest(res, 'This message is not awaiting approval');
     }
@@ -430,12 +516,11 @@ const approveNotificationLog = async (req, res, next) => {
 
 const declineNotificationLog = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return sendForbidden(res, 'Only admins can decline bulk messages');
-    }
-
     const log = await NotificationLog.findByPk(req.params.id);
     if (!log) return sendNotFound(res, 'Log not found');
+    const salonId = await resolveLogSalonId(log);
+    const block = getSalonModerationBlockReason(req, salonId);
+    if (block) return sendForbidden(res, block);
     if (log.status !== 'pending_approval') {
       return sendBadRequest(res, 'This message is not awaiting approval');
     }
@@ -456,10 +541,6 @@ const declineNotificationLog = async (req, res, next) => {
 
 const approveAllInBatch = async (req, res, next) => {
   try {
-    if (req.user.role !== 'admin') {
-      return sendForbidden(res, 'Only admins can approve bulk messages');
-    }
-
     const { batchId } = req.params;
     const logs = await NotificationLog.findAll({
       where: { batchId, status: 'pending_approval' },
@@ -469,6 +550,12 @@ const approveAllInBatch = async (req, res, next) => {
     const errors = [];
     let approved = 0;
     for (const log of logs) {
+      const salonId = await resolveLogSalonId(log);
+      const block = getSalonModerationBlockReason(req, salonId);
+      if (block || !salonId) {
+        errors.push({ logId: log.id, message: block || 'Cannot determine which salon this row belongs to.' });
+        continue;
+      }
       const vipOk = await logPassesVipApprovalRules(log);
       if (!vipOk) {
         await log.update({
@@ -509,6 +596,8 @@ const approveAllInBatch = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── Exports ───
 
 export {
   bulkNotify,

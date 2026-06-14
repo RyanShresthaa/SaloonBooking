@@ -1,5 +1,6 @@
 import logger from '../utils/Logger.js';
 
+/** Warn when a request takes at least this many ms (set `SLOW_REQUEST_MS` in `.env` to tune; default 1200). */
 const SLOW_MS = Number(process.env.SLOW_REQUEST_MS || 1200);
 
 /**

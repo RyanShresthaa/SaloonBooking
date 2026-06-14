@@ -31,7 +31,9 @@ export default function AppointmentConfirmationPage() {
 
   useEffect(() => {
     if (!id) {
-      setLoading(false);
+      queueMicrotask(() => {
+        setLoading(false);
+      });
       return;
     }
     let cancelled = false;
@@ -67,18 +69,20 @@ export default function AppointmentConfirmationPage() {
   if (!id) {
     return (
       <AuthGuard>
-        <p className="mx-auto max-w-lg py-16 text-center text-sm text-stone-600">Missing booking reference.</p>
+        <div className="page-shell-form">
+          <p className="py-16 text-center text-sm text-stone-600 dark:text-stone-400">Missing booking reference.</p>
+        </div>
       </AuthGuard>
     );
   }
 
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-2xl space-y-8">
-        <header className="border-b border-stone-300/50 pb-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">Booking</p>
-          <h1 className="font-display text-3xl text-stone-900 sm:text-4xl">You&apos;re booked</h1>
-          <p className="mt-2 text-sm text-stone-600">
+      <div className="page-shell-form">
+        <header className="page-header">
+          <p className="page-eyebrow">Booking</p>
+          <h1 className="page-title">You&apos;re booked</h1>
+          <p className="page-lede">
             Here is what we saved. You can review details anytime under Appointments.
           </p>
         </header>
@@ -95,7 +99,7 @@ export default function AppointmentConfirmationPage() {
 
         {loading ? (
           <div className="flex justify-center py-16" role="status" aria-label="Loading booking">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" aria-hidden />
           </div>
         ) : !appt ? (
           <p className="text-sm text-stone-600">We could not find that appointment.</p>
@@ -103,9 +107,9 @@ export default function AppointmentConfirmationPage() {
           <>
             <div className="surface-card space-y-5 rounded-lg p-6 sm:p-8">
               <div className="flex items-start gap-3">
-                <Scissors className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} />
+                <Scissors className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} aria-hidden />
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">Service</p>
+                  <p className="section-label">Service</p>
                   <p className="text-lg font-medium text-stone-900">{appt.service?.name ?? 'Service'}</p>
                   {appt.service?.duration != null ? (
                     <p className="text-xs text-stone-500">{appt.service.duration} minutes</p>
@@ -113,9 +117,9 @@ export default function AppointmentConfirmationPage() {
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <Calendar className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} />
+                <Calendar className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} aria-hidden />
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">When</p>
+                  <p className="section-label">When</p>
                   <p className="text-lg font-medium text-stone-900">
                     {appt.appointmentDate} at {appt.startTime}
                   </p>
@@ -123,16 +127,16 @@ export default function AppointmentConfirmationPage() {
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <User className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} />
+                <User className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} aria-hidden />
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">Guest</p>
+                  <p className="section-label">Guest</p>
                   <p className="font-medium text-stone-900">{appt.customerName}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <Mail className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} />
+                <Mail className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" strokeWidth={1.5} aria-hidden />
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">Contact</p>
+                  <p className="section-label">Contact</p>
                   <p className="text-stone-900">{appt.customerEmail}</p>
                   {appt.customerPhone ? <p className="text-sm text-stone-600">{appt.customerPhone}</p> : null}
                 </div>
@@ -148,6 +152,12 @@ export default function AppointmentConfirmationPage() {
                   ? 'You opted out at booking time. You can contact the salon if you change your mind.'
                   : 'If you left reminders on when booking, we aim to email about 24 hours and about 2 hours before your visit (timing may vary).'}
               </p>
+              {appt.status === 'pending' || appt.status === 'confirmed' ? (
+                <p className="text-xs leading-relaxed text-stone-500 dark:text-stone-500">
+                  Online cancellation may require advance notice (often 24 hours in production). If the button fails, the
+                  server message explains why — you can still phone or email the salon.
+                </p>
+              ) : null}
             </div>
 
             <section className="surface-muted rounded-lg border-stone-300/80 p-5 sm:p-6" aria-labelledby="next-heading">

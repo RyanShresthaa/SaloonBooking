@@ -22,6 +22,10 @@ const authenticate = async (req, res, next) => {
       return sendUnauthorized(res, 'User no longer exists');
     }
 
+    if (user.bannedAt) {
+      return sendForbidden(res, 'This account has been suspended.');
+    }
+
     if (env.authEmailVerificationRequired && !user.isEmailVerified) {
       return sendForbidden(res, 'Please verify your email before accessing this resource');
     }
@@ -46,4 +50,14 @@ const authorize = (...roles) => {
   };
 };
 
-export { authenticate, authorize };
+/** Allow if the user's role is any of the listed roles (e.g. super_admin + admin). */
+const authorizeAny = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return sendForbidden(res, 'You do not have permission to perform this action');
+    }
+    next();
+  };
+};
+
+export { authenticate, authorize, authorizeAny };

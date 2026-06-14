@@ -1,4 +1,4 @@
-import { User, sequelize } from '../models/Index.js';
+import { User, sequelize, MarketplaceSalon } from '../models/Index.js';
 import { generateToken, generateShortToken, generatePasswordResetToken, verifyToken } from '../utils/tokenHelper.js';
 import { sendEmail, buildVerificationEmail, buildPasswordResetEmail } from '../utils/emailHelper.js';
 import env from '../config/Env.js';
@@ -317,6 +317,32 @@ class AuthService {
     });
   }
 
+  /**
+   * Safe user payload for login and GET /auth/me. Adds `salonSlug` when the account is tied to a marketplace listing.
+   */
+  async formatAuthUser(user) {
+    const plain = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      salonId: user.salonId || null,
+      loyaltyPoints: user.loyaltyPoints ?? 0,
+      marketingEmailOptIn: user.marketingEmailOptIn !== false,
+      clientNotes: user.clientNotes ?? null,
+      allergies: user.allergies ?? null,
+    };
+    let salonSlug = null;
+    if (user.salonId) {
+      const salon = await MarketplaceSalon.findOne({
+        where: { id: user.salonId },
+        attributes: ['slug'],
+      });
+      salonSlug = salon?.slug || null;
+    }
+    return { ...plain, salonSlug };
+  }
+
   async login({ email, password }) {
     const emailNorm = (email || '').trim().toLowerCase();
     const user = await User.findOne({
@@ -335,18 +361,16 @@ class AuthService {
       throw error;
     }
 
-    const token = generateToken({ id: user.id, email: user.email, role: user.role });
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      salonId: user.salonId || null,
+    });
 
     return {
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        loyaltyPoints: user.loyaltyPoints ?? 0,
-        marketingEmailOptIn: user.marketingEmailOptIn !== false,
-      },
+      user: await this.formatAuthUser(user),
     };
   }
 }

@@ -1,10 +1,27 @@
 import appointmentService from '../services/AppointmentService.js';
 import { User } from '../models/Index.js';
 import { sendSuccess, sendCreated, sendBadRequest } from '../utils/apiResponse.js';
+import { resolvePublicSalonId, requireStaffSalonId } from '../utils/salonScope.js';
+
+// ─── Constants ───
+
+const ROLE_CUSTOMER = 'customer';
+const ROLE_ADMIN = 'admin';
+const ROLE_STAFF = 'staff';
+const CUSTOMER_EMAIL_MATCH_LIMIT = 2;
+
+function staffSalonIdOrNull(user) {
+  const r = String(user.role || '').toLowerCase();
+  if (r !== ROLE_ADMIN && r !== ROLE_STAFF) return null;
+  return requireStaffSalonId(user);
+}
+
+// ─── Handlers ───
 
 const exportAppointmentsCsv = async (req, res, next) => {
   try {
-    const csv = await appointmentService.exportAppointmentsCsv(req.user.id, req.user.role);
+    const salonId = staffSalonIdOrNull(req.user);
+    const csv = await appointmentService.exportAppointmentsCsv(req.user.id, req.user.role, salonId);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="appointments-${Date.now()}.csv"`);
     return res.status(200).send(csv);
@@ -15,7 +32,12 @@ const exportAppointmentsCsv = async (req, res, next) => {
 
 const listStaffForAssignment = async (req, res, next) => {
   try {
-    const staff = await appointmentService.listStaffAssignees();
+    const roleNorm = String(req.user.role || '').toLowerCase();
+    const salonId =
+      roleNorm === ROLE_ADMIN || roleNorm === ROLE_STAFF
+        ? requireStaffSalonId(req.user)
+        : resolvePublicSalonId(req.query.salonId);
+    const staff = await appointmentService.listStaffAssignees(salonId);
     return sendSuccess(res, staff, 'Staff list');
   } catch (error) {
     next(error);
@@ -25,7 +47,12 @@ const listStaffForAssignment = async (req, res, next) => {
 const getAvailableSlots = async (req, res, next) => {
   try {
     const { serviceId, date, staffId } = req.query;
-    const result = await appointmentService.getAvailableSlots(serviceId, date, staffId || null);
+    const roleNorm = String(req.user.role || '').toLowerCase();
+    const salonId =
+      roleNorm === ROLE_CUSTOMER
+        ? resolvePublicSalonId(req.query.salonId)
+        : requireStaffSalonId(req.user);
+    const result = await appointmentService.getAvailableSlots(serviceId, date, staffId || null, salonId);
     return sendSuccess(res, result, 'Available slots retrieved');
   } catch (error) {
     next(error);
@@ -34,7 +61,8 @@ const getAvailableSlots = async (req, res, next) => {
 
 const listAppointments = async (req, res, next) => {
   try {
-    const appointments = await appointmentService.listAppointments(req.user.id, req.user.role);
+    const salonId = staffSalonIdOrNull(req.user);
+    const appointments = await appointmentService.listAppointments(req.user.id, req.user.role, salonId);
     return sendSuccess(res, appointments, 'Appointments retrieved');
   } catch (error) {
     next(error);
@@ -43,10 +71,12 @@ const listAppointments = async (req, res, next) => {
 
 const getAppointment = async (req, res, next) => {
   try {
+    const salonId = staffSalonIdOrNull(req.user);
     const appointment = await appointmentService.getAppointment(
       req.params.id,
       req.user.id,
-      req.user.role
+      req.user.role,
+      salonId
     );
     return sendSuccess(res, appointment, 'Appointment retrieved');
   } catch (error) {
@@ -63,11 +93,10 @@ const createAppointment = async (req, res, next) => {
     const roleNorm = String(req.user.role || '').toLowerCase();
     let appointmentUserId = req.user.id;
 
-    if (roleNorm === 'customer') {
+    if (roleNorm === ROLE_CUSTOMER) {
       appointmentUserId = req.user.id;
-    } else if (roleNorm === 'admin' || roleNorm === 'staff') {
-      const explicit =
-        typeof customerUserIdRaw === 'string' ? customerUserIdRaw.trim() : '';
+    } else if (roleNorm === ROLE_ADMIN || roleNorm === ROLE_STAFF) {
+      const explicit = typeof customerUserIdRaw === 'string' ? customerUserIdRaw.trim() : '';
       if (explicit) {
         const u = await User.findByPk(explicit, { attributes: ['id'] });
         if (!u) {
@@ -77,9 +106,9 @@ const createAppointment = async (req, res, next) => {
       } else if (body.customerEmail) {
         const emailNorm = String(body.customerEmail).trim().toLowerCase();
         const customers = await User.findAll({
-          where: { email: emailNorm, role: 'customer' },
+          where: { email: emailNorm, role: ROLE_CUSTOMER },
           attributes: ['id'],
-          limit: 2,
+          limit: CUSTOMER_EMAIL_MATCH_LIMIT,
         });
         if (customers.length === 1) {
           appointmentUserId = customers[0].id;
@@ -90,6 +119,8 @@ const createAppointment = async (req, res, next) => {
     const appointment = await appointmentService.createAppointment({
       userId: appointmentUserId,
       actorUserId: req.user.id,
+      actorRole: req.user.role,
+      actorSalonId: req.user.salonId || null,
       ...body,
     });
     return sendCreated(res, appointment, 'Appointment created successfully');
@@ -100,11 +131,13 @@ const createAppointment = async (req, res, next) => {
 
 const updateAppointment = async (req, res, next) => {
   try {
+    const salonId = staffSalonIdOrNull(req.user);
     const appointment = await appointmentService.updateAppointment(
       req.params.id,
       req.user.id,
       req.user.role,
-      req.body
+      req.body,
+      salonId
     );
     return sendSuccess(res, appointment, 'Appointment updated successfully');
   } catch (error) {
@@ -114,16 +147,20 @@ const updateAppointment = async (req, res, next) => {
 
 const cancelAppointment = async (req, res, next) => {
   try {
+    const salonId = staffSalonIdOrNull(req.user);
     const appointment = await appointmentService.cancelAppointment(
       req.params.id,
       req.user.id,
-      req.user.role
+      req.user.role,
+      salonId
     );
     return sendSuccess(res, appointment, 'Appointment cancelled');
   } catch (error) {
     next(error);
   }
 };
+
+// ─── Exports ───
 
 export {
   exportAppointmentsCsv,

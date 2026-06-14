@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
     <div className="w-full max-w-md">
       <div className="surface-card rounded-lg p-8 sm:p-10">
         <div className="mb-8 space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">Account</p>
+          <p className="page-eyebrow">Account</p>
           <h1 className="text-3xl text-stone-900">Forgot password</h1>
           <p className="text-sm text-stone-600">
             Remember it?{' '}

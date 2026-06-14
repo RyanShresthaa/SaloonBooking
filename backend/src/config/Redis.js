@@ -2,6 +2,9 @@ import Redis from 'ioredis';
 import env from './Env.js';
 import logger from '../utils/Logger.js';
 
+// ─── Setup ───
+// Bull expects `maxRetriesPerRequest: null` for blocking commands.
+
 const redisConfig = env.redis.url
   ? {
       url: env.redis.url,
@@ -22,5 +25,7 @@ redisClient.on('connect', () => {
 redisClient.on('error', (err) => {
   logger.error('Redis error:', err);
 });
+
+// ─── Exports ───
 
 export default redisClient;

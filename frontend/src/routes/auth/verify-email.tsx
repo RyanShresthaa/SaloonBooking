@@ -74,7 +74,7 @@ function VerifyEmailContent() {
             <h2 className="text-2xl text-stone-900">Link didn&apos;t work</h2>
             <p className="mt-3 text-sm text-stone-600">{message}</p>
             <div className="mt-8 rounded-md border border-stone-200 bg-stone-50/80 px-4 py-4 text-left">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Try again</p>
+              <p className="section-label">Try again</p>
               <ResendVerificationBlock className="mt-3" />
             </div>
             <Link to="/register" className="link-quiet mt-6 inline-block text-sm font-semibold">

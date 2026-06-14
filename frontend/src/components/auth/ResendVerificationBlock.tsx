@@ -5,7 +5,6 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 
 type Props = {
-  /** When set, the email field is hidden and this address is used (may be empty until the user types). */
   lockedEmail?: string;
   /** Initial value for the visible email field. */
   defaultEmail?: string;
@@ -50,7 +49,7 @@ export default function ResendVerificationBlock({ lockedEmail, defaultEmail = ''
   const canSend = Boolean(effectiveEmail);
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-4 ${className}`} aria-live="polite">
       <p className="text-sm text-stone-600">
         Open the link in the email we sent to finish verification. You can send a new message if it expired or never
         arrived.

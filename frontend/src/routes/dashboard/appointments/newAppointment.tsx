@@ -1,21 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { listServices } from '@/lib/api/services';
 import { getAvailableSlots, createAppointment, listStaffForAssignment } from '@/lib/api/appointments';
+import { listMarketplaceSalons, type MarketplaceSalonCard } from '@/lib/api/marketplace';
 import AuthGuard from '@/components/layout/AuthGuard';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
+import { formatCurrency } from '@/lib/utils/currency';
 import { useAuthStore } from '@/store/authStore';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 
-const schema = z.object({
+// ─── Constants ───
+
+const BOOKING_FORM_SCHEMA = z.object({
   serviceId: z.string().min(1, 'Select a service'),
   customerName: z.string().min(2, 'Name is required'),
   customerEmail: z.string().email('Valid email required'),
@@ -29,14 +33,147 @@ const schema = z.object({
   repeatNextWeek: z.boolean().optional(),
 });
 
-type FormData = z.infer<typeof schema>;
+// ─── Types ───
+
+type FormData = z.infer<typeof BOOKING_FORM_SCHEMA>;
 type Service = { id: string; name: string; duration: number; price: number };
 type Slot = { startTime: string; endTime: string; available: boolean };
 
+// ─── Components ───
+
+function CustomerSalonPicker() {
+  const [serviceNeed, setServiceNeed] = useState('');
+  const [discoverSalons, setDiscoverSalons] = useState<MarketplaceSalonCard[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverError, setDiscoverError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const findSalons = async () => {
+    setHasSearched(true);
+    setDiscoverLoading(true);
+    setDiscoverError('');
+    try {
+      const res = await listMarketplaceSalons({
+        serviceQ: serviceNeed.trim() || undefined,
+        sort: 'rating',
+        limit: 24,
+        offset: 0,
+      });
+      setDiscoverSalons(res.data.data?.salons || []);
+    } catch (err: unknown) {
+      setDiscoverError(getApiErrorMessage(err, 'Could not search salons.'));
+      setDiscoverSalons([]);
+    } finally {
+      setDiscoverLoading(false);
+    }
+  };
+
+  return (
+    <div className="page-shell-form">
+      <header className="page-header">
+        <p className="page-eyebrow">Booking</p>
+        <h1 className="page-title">Choose a salon first</h1>
+        <p className="page-lede">
+          Appointments are always tied to a specific salon. Browse the marketplace, open a profile, or search below for
+          salons that offer the service you need — then continue to pick a time.
+        </p>
+      </header>
+
+      <div className="surface-card space-y-6 rounded-lg p-6 sm:p-8">
+        <div className="flex flex-wrap gap-3">
+          <Link
+            to="/marketplace"
+            className="inline-flex items-center justify-center rounded-md border border-stone-900 bg-stone-900 px-4 py-2.5 text-sm font-semibold text-stone-50 transition hover:bg-stone-800 focus-ring dark:bg-stone-100 dark:text-stone-900 dark:border-stone-300 dark:hover:bg-white"
+          >
+            Browse all salons
+          </Link>
+        </div>
+
+        <div className="border-t border-stone-200 pt-6 dark:border-stone-700">
+          <p className="section-label">Or find salons by service</p>
+          <p className="mb-3 text-sm text-stone-600 dark:text-stone-400">
+            We match your text against live bookable services (for example &quot;cut&quot;, &quot;color&quot;,
+            &quot;beard&quot;). Leave blank to see highly rated salons first.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <Input
+                label="Service keywords"
+                value={serviceNeed}
+                onChange={(e) => setServiceNeed(e.target.value)}
+                placeholder="e.g. haircut, highlights, manicure"
+              />
+            </div>
+            <Button type="button" onClick={() => void findSalons()} loading={discoverLoading}>
+              Search salons
+            </Button>
+          </div>
+          {discoverError ? (
+            <p className="mt-3 text-sm text-red-800" role="alert">
+              {discoverError}
+            </p>
+          ) : null}
+        </div>
+
+        {discoverSalons.length > 0 ? (
+          <ul className="divide-y divide-stone-200 rounded-lg border border-stone-200 dark:divide-stone-700 dark:border-stone-700">
+            {discoverSalons.map((s) => (
+              <li key={s.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-medium text-stone-900 dark:text-stone-100">{s.name}</p>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                    {[s.city, s.region].filter(Boolean).join(', ')}
+                    {s.avgRating != null ? ` · ${s.avgRating.toFixed(1)} ★` : ''}
+                    {s.reviewCount != null && s.reviewCount > 0 ? ` · ${s.reviewCount} reviews` : ''}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {s.slug ? (
+                    <Link
+                      to={`/marketplace/${encodeURIComponent(s.slug)}`}
+                      className="inline-flex items-center rounded-md border border-stone-300 px-3 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50 focus-ring dark:border-stone-600 dark:text-stone-100 dark:hover:bg-stone-800/80"
+                    >
+                      View profile
+                    </Link>
+                  ) : null}
+                  <Link
+                    to={`/appointments/new?salonId=${encodeURIComponent(s.id)}`}
+                    className="inline-flex items-center rounded-md border border-stone-900 bg-stone-900 px-3 py-2 text-sm font-semibold text-stone-50 hover:bg-stone-800 focus-ring dark:bg-stone-100 dark:text-stone-900 dark:border-stone-300 dark:hover:bg-white"
+                  >
+                    Book here
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {hasSearched && !discoverLoading && discoverSalons.length === 0 && !discoverError ? (
+          <p className="text-sm text-stone-600 dark:text-stone-400">
+            No salons matched that search. Try different keywords, browse the marketplace for filters, or pick a
+            profile to see exact services.
+          </p>
+        ) : null}
+
+        {!hasSearched ? (
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            Tip: use the marketplace to sort by price, rating, and popularity before you book.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ─── Exports ───
+
 export default function NewAppointmentPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const isSalonDesk = user?.role === 'admin' || user?.role === 'staff';
+  const salonIdFromUrl = searchParams.get('salonId')?.trim() || '';
+  const bookingSalonId = isSalonDesk ? null : salonIdFromUrl || null;
   const [services, setServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(true);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -50,17 +187,24 @@ export default function NewAppointmentPage() {
     control,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(BOOKING_FORM_SCHEMA),
     defaultValues: { isVip: false, emailRemindersOptIn: true, repeatNextWeek: false, assignedStaffId: '' },
   });
 
+  const setValueRef = useRef(setValue);
+  useEffect(() => {
+    setValueRef.current = setValue;
+  });
+
   const { data: staffList = [] } = useQuery({
-    queryKey: ['staff-assignees'],
+    queryKey: ['staff-assignees', isSalonDesk ? 'desk' : bookingSalonId],
     queryFn: async () => {
-      const res = await listStaffForAssignment();
+      const res = await listStaffForAssignment(
+        isSalonDesk ? undefined : { salonId: bookingSalonId ?? undefined },
+      );
       return (res.data.data || []) as { id: string; name: string; role: string; speciality?: string | null }[];
     },
-    enabled: Boolean(user),
+    enabled: Boolean(user) && (isSalonDesk || Boolean(bookingSalonId)),
   });
 
   const selectedServiceId = useWatch({ control, name: 'serviceId' });
@@ -70,7 +214,7 @@ export default function NewAppointmentPage() {
 
   useEffect(() => {
     let cancelled = false;
-    listServices()
+    listServices(isSalonDesk ? undefined : bookingSalonId ?? undefined)
       .then((res) => {
         if (!cancelled) setServices(res.data.data || []);
       })
@@ -83,7 +227,7 @@ export default function NewAppointmentPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isSalonDesk, bookingSalonId]);
 
   useEffect(() => {
     if (!selectedServiceId || !selectedDate) return;
@@ -91,10 +235,13 @@ export default function NewAppointmentPage() {
     let isCancelled = false;
     void Promise.resolve().then(async () => {
       setLoadingSlots(true);
-      setValue('startTime', '');
+      setValueRef.current('startTime', '');
       try {
         const staffId = selectedStaffId?.trim() || undefined;
-        const res = await getAvailableSlots(selectedServiceId, selectedDate, staffId);
+        const res = await getAvailableSlots(selectedServiceId, selectedDate, {
+          staffId,
+          salonId: isSalonDesk ? undefined : bookingSalonId ?? undefined,
+        });
         if (!isCancelled) {
           setSlots(res.data.data.slots);
         }
@@ -113,7 +260,7 @@ export default function NewAppointmentPage() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedServiceId, selectedDate, selectedStaffId, setValue]);
+  }, [selectedServiceId, selectedDate, selectedStaffId, isSalonDesk, bookingSalonId]);
 
   const onSubmit = async (data: FormData) => {
     setServerError('');
@@ -136,7 +283,10 @@ export default function NewAppointmentPage() {
 
       if (data.repeatNextWeek && firstId) {
         const nextDate = dayjs(data.appointmentDate).add(7, 'day').format('YYYY-MM-DD');
-        const slotRes = await getAvailableSlots(data.serviceId, nextDate, staff);
+        const slotRes = await getAvailableSlots(data.serviceId, nextDate, {
+          staffId: staff,
+          salonId: isSalonDesk ? undefined : bookingSalonId ?? undefined,
+        });
         const nextSlots = slotRes.data.data.slots as Slot[];
         const ok = nextSlots.some((s) => s.startTime === data.startTime && s.available);
         if (!ok) {
@@ -173,14 +323,30 @@ export default function NewAppointmentPage() {
 
   const today = dayjs().format('YYYY-MM-DD');
 
+  if (!isSalonDesk && !bookingSalonId) {
+    return (
+      <AuthGuard>
+        <CustomerSalonPicker />
+      </AuthGuard>
+    );
+  }
+
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-2xl space-y-8">
-        <header className="border-b border-stone-300/50 pb-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">Booking</p>
-          <h1 className="font-display text-3xl text-stone-900 sm:text-4xl">New appointment</h1>
-          <p className="mt-2 text-sm text-stone-600">
+      <div className="page-shell-form">
+        <header className="page-header">
+          <p className="page-eyebrow">Booking</p>
+          <h1 className="page-title">New appointment</h1>
+          <p className="page-lede">
             Service, slot, contact — keep it accurate. After you confirm, you&apos;ll see a summary and next steps.
+            {!isSalonDesk && bookingSalonId ? (
+              <>
+                {' '}
+                <Link to="/marketplace" className="font-medium text-rose-800 underline dark:text-rose-300">
+                  Change salon
+                </Link>
+              </>
+            ) : null}
           </p>
         </header>
 
@@ -196,7 +362,7 @@ export default function NewAppointmentPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="surface-card space-y-6 rounded-lg p-6 sm:p-8">
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="booking-service" className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+            <label htmlFor="booking-service" className="section-label">
               Service
             </label>
             <select
@@ -208,7 +374,7 @@ export default function NewAppointmentPage() {
               <option value="">{servicesLoading ? 'Loading services…' : 'Select a service'}</option>
               {services.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} — {s.duration} min — ${s.price}
+                  {s.name} — {s.duration} min — {formatCurrency(s.price)}
                 </option>
               ))}
             </select>
@@ -228,7 +394,7 @@ export default function NewAppointmentPage() {
 
           {staffList.length > 0 ? (
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="new-assigned-staff" className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+              <label htmlFor="new-assigned-staff" className="section-label">
                 {isSalonDesk ? 'Assigned staff (optional)' : 'Preferred stylist (optional)'}
               </label>
               <select
@@ -249,7 +415,7 @@ export default function NewAppointmentPage() {
 
           {selectedServiceId && selectedDate && (
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">Available slots</p>
+              <p className="section-label">Available slots</p>
               {loadingSlots ? (
                 <div className="flex flex-wrap gap-2" role="status" aria-label="Loading slots">
                   {[...Array(4)].map((_, i) => (
@@ -308,7 +474,7 @@ export default function NewAppointmentPage() {
           <Input label="Phone (optional)" type="tel" placeholder="+1 555 000 0000" {...register('customerPhone')} />
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="booking-notes" className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+            <label htmlFor="booking-notes" className="section-label">
               Notes (optional)
             </label>
             <textarea

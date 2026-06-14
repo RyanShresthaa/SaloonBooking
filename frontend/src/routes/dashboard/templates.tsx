@@ -8,6 +8,8 @@ import { FileText, Sparkles } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
 
+// ─── Types ───
+
 interface Template {
   id: string;
   name: string;
@@ -26,24 +28,30 @@ interface AppointmentPreview {
   service?: { name?: string };
 }
 
-const fallbackPreviewData: Record<string, string> = {
+// ─── Constants ───
+
+const FALLBACK_PREVIEW_DATA: Record<string, string> = {
   customerName: 'Valued Customer',
   serviceName: 'Salon Service',
   date: '2026-05-10',
   time: '10:30 AM',
 };
 
-const renderTemplatePreview = (templateBody: string, previewData: Record<string, string>) => {
+// ─── Helpers ───
+
+function renderTemplatePreview(templateBody: string, previewData: Record<string, string>) {
   let previewBody = templateBody;
   Object.entries(previewData).forEach(([key, value]) => {
     previewBody = previewBody.replace(new RegExp(`{{${key}}}`, 'g'), value);
   });
   return previewBody;
-};
+}
+
+// ─── Exports ───
 
 export default function TemplatesPage() {
   const { user } = useAuthStore();
-  const role = user?.role;
+  const { role } = user ?? {};
   const isAdmin = role === 'admin';
   const isCustomer = role === 'customer';
 
@@ -80,15 +88,15 @@ export default function TemplatesPage() {
 
   const previewData = selectedAppointment
     ? {
-        customerName: selectedAppointment.customerName || fallbackPreviewData.customerName,
-        serviceName: selectedAppointment.service?.name || fallbackPreviewData.serviceName,
-        date: selectedAppointment.appointmentDate || fallbackPreviewData.date,
-        time: selectedAppointment.startTime || fallbackPreviewData.time,
+        customerName: selectedAppointment.customerName || FALLBACK_PREVIEW_DATA.customerName,
+        serviceName: selectedAppointment.service?.name || FALLBACK_PREVIEW_DATA.serviceName,
+        date: selectedAppointment.appointmentDate || FALLBACK_PREVIEW_DATA.date,
+        time: selectedAppointment.startTime || FALLBACK_PREVIEW_DATA.time,
         vipExtra: selectedAppointment.isVip
           ? '<em style="color:#713f12;">VIP scheduling priority and complimentary refreshments.</em>'
           : '',
       }
-    : { ...fallbackPreviewData, vipExtra: '' };
+    : { ...FALLBACK_PREVIEW_DATA, vipExtra: '' };
 
   const toggleTemplate = (templateId: string, requiresVip: boolean | undefined) => {
     if (requiresVip && selectedAppointment && !selectedAppointment.isVip) {
@@ -127,19 +135,19 @@ export default function TemplatesPage() {
 
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-5xl space-y-10">
-        <header className="space-y-2 border-b border-stone-300/50 pb-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">
+      <div className="page-shell-spacious">
+        <header className="page-header">
+          <p className="page-eyebrow">
             {isCustomer ? 'Your account' : 'Correspondence'}
           </p>
-          <h1 className="font-display text-3xl text-stone-900 sm:text-4xl">
+          <h1 className="page-title">
             {isCustomer ? 'Email templates' : 'Templates'}
           </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-stone-600">
+          <p className="page-lede max-w-2xl">
             {isCustomer ? (
               <>
                 See sample wording the salon might use. Previews use{' '}
-                <strong className="font-medium text-stone-800">only your own bookings</strong> — you never see other
+                <strong className="font-medium text-stone-800 dark:text-stone-200">only your own bookings</strong> — you never see other
                 guests&apos; appointments here.
               </>
             ) : (
@@ -151,8 +159,8 @@ export default function TemplatesPage() {
           </p>
         </header>
 
-        <div className="surface-card rounded-lg p-5 sm:p-6">
-          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+        <section className="surface-card rounded-lg p-5 sm:p-6" aria-label="Preview appointment selection">
+          <label className="section-label">
             {isCustomer ? 'Your visit (preview)' : 'Preview appointment'}
           </label>
           {isCustomer && appointments.length === 0 ? (
@@ -184,7 +192,7 @@ export default function TemplatesPage() {
           {isCustomer ? (
             selectedAppointment?.isVip ? (
               <p className="mt-3 flex items-center gap-2 text-xs text-amber-950">
-                <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={1.5} />
+                <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={1.5} aria-hidden />
                 Your booking includes VIP — VIP-only templates are available below.
               </p>
             ) : (
@@ -194,7 +202,7 @@ export default function TemplatesPage() {
             )
           ) : selectedAppointment?.isVip ? (
             <p className="mt-3 flex items-center gap-2 text-xs text-amber-950">
-              <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={1.5} />
+              <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-80" strokeWidth={1.5} aria-hidden />
               VIP booking — VIP-only templates unlock for this row.
             </p>
           ) : (
@@ -202,14 +210,14 @@ export default function TemplatesPage() {
               Clients choose VIP when booking. Without it, VIP-only templates stay inactive here.
             </p>
           )}
-        </div>
+        </section>
 
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" />
+          <div className="flex justify-center py-20" role="status" aria-label="Loading templates">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" aria-hidden />
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" aria-label="Email templates">
             {templates.map((t) => {
               const locked =
                 Boolean(t.requiresVip) && selectedAppointment != null && !selectedAppointment.isVip;
@@ -239,13 +247,13 @@ export default function TemplatesPage() {
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-stone-50">
-                      <FileText className="h-4 w-4 text-stone-600" strokeWidth={1.5} />
+                      <FileText className="h-4 w-4 text-stone-600" strokeWidth={1.5} aria-hidden />
                     </div>
                     <div className="min-w-0">
                       <h3 className="font-display flex items-center gap-2 truncate text-lg text-stone-900">
                         {t.name}
                         {t.requiresVip ? (
-                          <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-950 bg-amber-100/90">
+                          <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-amber-950 bg-amber-100/90">
                             VIP
                           </span>
                         ) : null}
@@ -262,7 +270,7 @@ export default function TemplatesPage() {
 
                   {selected === t.id && (
                     <div className="mt-4 border-t border-stone-200/80 pt-4">
-                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-stone-500">Preview</p>
+                      <p className="mb-2 section-label">Preview</p>
                       <div
                         className="prose prose-sm max-w-none text-xs leading-relaxed text-stone-700 [&_li]:my-0.5"
                         dangerouslySetInnerHTML={{
@@ -274,7 +282,7 @@ export default function TemplatesPage() {
 
                   {selected === t.id && (
                     <div className="mt-3">
-                      <span className="inline-block rounded-md border border-stone-900 bg-stone-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-stone-50">
+                      <span className="inline-block rounded-md border border-stone-900 bg-stone-900 px-2.5 py-1 text-[10px] font-medium text-stone-50">
                         Selected
                       </span>
                     </div>
@@ -282,11 +290,11 @@ export default function TemplatesPage() {
                 </div>
               );
             })}
-          </div>
+          </section>
         )}
 
         {selected && (
-          <div className="surface-muted rounded-lg border-stone-300/80 p-5 sm:p-6">
+          <section className="surface-muted rounded-lg border-stone-300/80 p-5 sm:p-6" aria-label="Template actions">
             {isCustomer ? (
               <p className="text-sm leading-relaxed text-stone-700">
                 This is a sample only. The salon sends real confirmations and reminders; nothing leaves this page from
@@ -321,7 +329,7 @@ export default function TemplatesPage() {
                 {reminderMessage.text}
               </p>
             ) : null}
-          </div>
+          </section>
         )}
       </div>
     </AuthGuard>

@@ -54,15 +54,15 @@ router.post(
   notificationController.bulkNotify
 );
 
-router.post('/reminder', authorize('admin'), notificationController.sendReminderEmail);
+router.post('/reminder', authorize('admin', 'staff'), notificationController.sendReminderEmail);
 
-router.post('/logs/:id/mark-finished', authorize('admin'), notificationController.markBookingFinished);
+router.post('/logs/:id/mark-finished', authorize('admin', 'staff'), notificationController.markBookingFinished);
 
-router.post('/logs/:id/approve', authorize('admin'), notificationController.approveNotificationLog);
-router.post('/logs/:id/decline', authorize('admin'), notificationController.declineNotificationLog);
+router.post('/logs/:id/approve', authorize('admin', 'staff'), notificationController.approveNotificationLog);
+router.post('/logs/:id/decline', authorize('admin', 'staff'), notificationController.declineNotificationLog);
 router.post(
   '/batches/:batchId/approve-all',
-  authorize('admin'),
+  authorize('admin', 'staff'),
   notificationController.approveAllInBatch
 );
 

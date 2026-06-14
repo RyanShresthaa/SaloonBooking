@@ -2,20 +2,29 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import swaggerJsdoc from 'swagger-jsdoc';
 
+// ─── Constants ───
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const OPENAPI_VERSION = '3.0.0';
+const API_TITLE = 'Salon Appointment API';
+const API_VERSION = '1.0.0';
+const API_DESCRIPTION = 'API documentation for the Salon Appointment & Time Slot Management System';
+const DEV_SERVER_URL = 'http://localhost:5000/api';
+const DEV_SERVER_LABEL = 'Development server';
 
 const options = {
   definition: {
-    openapi: '3.0.0',
+    openapi: OPENAPI_VERSION,
     info: {
-      title: 'Salon Appointment API',
-      version: '1.0.0',
-      description: 'API documentation for the Salon Appointment & Time Slot Management System',
+      title: API_TITLE,
+      version: API_VERSION,
+      description: API_DESCRIPTION,
     },
     servers: [
       {
-        url: 'http://localhost:5000/api',
-        description: 'Development server',
+        url: DEV_SERVER_URL,
+        description: DEV_SERVER_LABEL,
       },
     ],
     components: {
@@ -31,6 +40,8 @@ const options = {
   },
   apis: [join(__dirname, '../routes/*.js'), join(__dirname, '../models/*.js')],
 };
+
+// ─── Exports ───
 
 const swaggerSpec = swaggerJsdoc(options);
 

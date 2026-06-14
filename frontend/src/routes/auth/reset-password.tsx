@@ -61,7 +61,7 @@ function ResetPasswordForm() {
     <div className="w-full max-w-md">
       <div className="surface-card rounded-lg p-8 sm:p-10">
         <div className="mb-8 space-y-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">Security</p>
+          <p className="page-eyebrow">Security</p>
           <h1 className="text-3xl text-stone-900">New password</h1>
           <p className="text-sm text-stone-600">Choose something you have not used elsewhere.</p>
         </div>

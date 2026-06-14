@@ -1,10 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
 
+const DEFAULT_SALON_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
 export default {
   up: async (queryInterface) => {
     await queryInterface.bulkInsert('notification_templates', [
       {
         id: uuidv4(),
+        salonId: DEFAULT_SALON_ID,
         name: 'Standard Confirmation',
         subject: 'Your Appointment is Confirmed!',
         body: `
@@ -25,6 +28,7 @@ export default {
       },
       {
         id: uuidv4(),
+        salonId: DEFAULT_SALON_ID,
         name: 'Reminder Template',
         subject: 'Reminder: Your Appointment Tomorrow',
         body: `
@@ -45,6 +49,7 @@ export default {
       },
       {
         id: uuidv4(),
+        salonId: DEFAULT_SALON_ID,
         name: 'VIP Confirmation',
         subject: '✨ Your VIP Appointment is Confirmed',
         body: `

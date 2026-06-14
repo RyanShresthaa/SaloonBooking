@@ -1,9 +1,16 @@
 import visitFeedbackService from '../services/VisitFeedbackService.js';
 import { sendSuccess, sendCreated } from '../utils/apiResponse.js';
+import { requireStaffSalonId } from '../utils/salonScope.js';
+
+// ─── Handlers ───
 
 const listFeedback = async (req, res, next) => {
   try {
-    const rows = await visitFeedbackService.list(req.user.id, req.user.role);
+    let salonId = null;
+    if (req.user.role === 'admin' || req.user.role === 'staff') {
+      salonId = requireStaffSalonId(req.user);
+    }
+    const rows = await visitFeedbackService.list(req.user.id, req.user.role, salonId);
     return sendSuccess(res, rows, 'Feedback retrieved');
   } catch (error) {
     next(error);
@@ -43,5 +50,7 @@ const deleteFeedback = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── Exports ───
 
 export { listFeedback, createFeedback, updateFeedback, deleteFeedback };

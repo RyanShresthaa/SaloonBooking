@@ -31,6 +31,9 @@ function assertVercelProductionApiEnv(mode: string) {
 export default defineConfig(({ mode }) => {
   assertVercelProductionApiEnv(mode);
 
+  /** Dev: browser calls same origin (`/api`, `/socket.io`); Vite forwards to the Node API (default :5000). */
+  const apiTarget = (process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:5000').replace(/\/$/, '');
+
   return {
     plugins: [tailwindcss(), react()],
     resolve: {
@@ -38,5 +41,14 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    server:
+      mode === 'development'
+        ? {
+            proxy: {
+              '/api': { target: apiTarget, changeOrigin: true },
+              '/socket.io': { target: apiTarget, changeOrigin: true, ws: true },
+            },
+          }
+        : undefined,
   };
 });

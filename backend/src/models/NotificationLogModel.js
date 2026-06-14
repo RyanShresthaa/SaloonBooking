@@ -64,11 +64,6 @@ export default (sequelize) => {
         allowNull: true,
         references: { model: 'users', key: 'id' },
       },
-      sentByUserId: {
-        type: DataTypes.UUID,
-        allowNull: true,
-        references: { model: 'users', key: 'id' },
-      },
     },
     {
       tableName: 'notification_logs',

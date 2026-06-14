@@ -2,7 +2,16 @@ import env from '../config/Env.js';
 import { Appointment } from '../models/Index.js';
 import { sendBadRequest, sendSuccess } from '../utils/apiResponse.js';
 
+// ─── Constants ───
+
+const FALLBACK_STRIPE_CURRENCY = 'usd';
+
+// ─── Module state ───
+
 let stripeClient = null;
+
+// ─── Helpers ───
+
 async function getStripe() {
   if (!env.stripe?.secretKey) return null;
   if (!stripeClient) {
@@ -11,6 +20,8 @@ async function getStripe() {
   }
   return stripeClient;
 }
+
+// ─── Handlers ───
 
 /** Customer: pay a fixed deposit for an appointment they own (Stripe Checkout). */
 const createDepositCheckout = async (req, res, next) => {
@@ -36,7 +47,7 @@ const createDepositCheckout = async (req, res, next) => {
     }
 
     const amount = env.stripe.depositAmountCents;
-    const currency = (env.stripe.currency || 'usd').toLowerCase();
+    const currency = (env.stripe.currency || FALLBACK_STRIPE_CURRENCY).toLowerCase();
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -59,9 +70,11 @@ const createDepositCheckout = async (req, res, next) => {
     });
 
     return sendSuccess(res, { url: session.url, sessionId: session.id }, 'Checkout session created');
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 };
+
+// ─── Exports ───
 
 export { createDepositCheckout };

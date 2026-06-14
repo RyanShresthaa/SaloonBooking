@@ -2,6 +2,9 @@ import { Op, UniqueConstraintError } from 'sequelize';
 import { User, Appointment, WaitlistEntry } from '../models/Index.js';
 import env from '../config/Env.js';
 import { sendSuccess, sendCreated, sendBadRequest, sendNotFound } from '../utils/apiResponse.js';
+import { requireStaffSalonId } from '../utils/salonScope.js';
+
+// ─── Constants ───
 
 /** Default salon desk hours (matches AppointmentService business window + break). */
 const DEFAULT_SALON_HOURS = {
@@ -19,29 +22,41 @@ const DEMO_STYLISTS = [
   { name: 'Casey Avery', email: 'casey.avery@salon-desk.demo' },
 ];
 
+const STAFF_DIRECTORY_ROLES = ['staff', 'admin'];
+const PASSWORD_MIN_LENGTH = 6;
+const NAME_MAX_LENGTH = 120;
+const SPECIALITY_MAX_LENGTH = 500;
+const STAFF_NOTES_MAX_LENGTH = 5000;
+const STAFF_ROLE_STAFF = 'staff';
+const STAFF_ROLE_ADMIN = 'admin';
+
+// ─── Handlers ───
+
 const listTeam = async (req, res, next) => {
   try {
+    const salonId = requireStaffSalonId(req.user);
     const team = await User.findAll({
-      where: { role: { [Op.in]: ['staff', 'admin'] } },
-      attributes: ['id', 'name', 'email', 'role', 'speciality', 'staffNotes', 'createdAt'],
+      where: { role: { [Op.in]: STAFF_DIRECTORY_ROLES }, salonId },
+      attributes: ['id', 'name', 'email', 'role', 'speciality', 'staffNotes', 'profilePhotoUrl', 'staffBio', 'skills', 'yearsExperience', 'createdAt'],
       order: [
         ['role', 'ASC'],
         ['name', 'ASC'],
       ],
     });
     return sendSuccess(res, { team, salonHours: DEFAULT_SALON_HOURS }, 'Staff directory');
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 };
 
 const seedDemoStaff = async (req, res, next) => {
   try {
+    const salonId = requireStaffSalonId(req.user);
     const plain = env.staffSeedPassword?.trim();
-    if (!plain || plain.length < 6) {
+    if (!plain || plain.length < PASSWORD_MIN_LENGTH) {
       return sendBadRequest(
         res,
-        'Set STAFF_SEED_PASSWORD in the server environment (min 6 characters), restart the API, then try again.'
+        `Set STAFF_SEED_PASSWORD in the server environment (min ${PASSWORD_MIN_LENGTH} characters), restart the API, then try again.`
       );
     }
 
@@ -55,7 +70,8 @@ const seedDemoStaff = async (req, res, next) => {
           name: row.name,
           email: row.email,
           password: plain,
-          role: 'staff',
+          role: STAFF_ROLE_STAFF,
+          salonId,
           isEmailVerified: true,
           emailVerificationToken: null,
         },
@@ -66,10 +82,11 @@ const seedDemoStaff = async (req, res, next) => {
         continue;
       }
 
-      if (user.role !== 'staff') {
+      if (user.role !== STAFF_ROLE_STAFF) {
         await user.update({
-          role: 'staff',
+          role: STAFF_ROLE_STAFF,
           password: plain,
+          salonId,
           isEmailVerified: true,
           emailVerificationToken: null,
         });
@@ -86,46 +103,52 @@ const seedDemoStaff = async (req, res, next) => {
         ? 'Demo stylists already exist; nothing new was created.'
         : 'Demo stylists are ready to sign in.'
     );
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 };
 
 const createStaffMember = async (req, res, next) => {
   try {
-    const { name, email, password, role, speciality, staffNotes } = req.body;
+    const salonId = requireStaffSalonId(req.user);
+    const { name, email, password, role, speciality, staffNotes, profilePhotoUrl, staffBio, skills, yearsExperience } = req.body;
     const nameTrim = String(name || '').trim();
     const emailTrim = String(email || '').trim().toLowerCase();
     const pass = String(password || '');
 
-    if (!nameTrim || nameTrim.length > 120) {
-      return sendBadRequest(res, 'Name is required (max 120 characters).');
+    if (!nameTrim || nameTrim.length > NAME_MAX_LENGTH) {
+      return sendBadRequest(res, `Name is required (max ${NAME_MAX_LENGTH} characters).`);
     }
     if (!emailTrim) {
       return sendBadRequest(res, 'Email is required.');
     }
-    if (pass.length < 6) {
-      return sendBadRequest(res, 'Password must be at least 6 characters.');
+    if (pass.length < PASSWORD_MIN_LENGTH) {
+      return sendBadRequest(res, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
     }
     const normRole = String(role || '').toLowerCase();
-    if (!['staff', 'admin'].includes(normRole)) {
+    if (!STAFF_DIRECTORY_ROLES.includes(normRole)) {
       return sendBadRequest(res, 'Role must be staff or admin.');
     }
 
     const spec =
-      speciality === undefined || speciality === null ? null : String(speciality).trim().slice(0, 500) || null;
+      speciality === undefined || speciality === null ? null : String(speciality).trim().slice(0, SPECIALITY_MAX_LENGTH) || null;
     const notes =
-      staffNotes === undefined || staffNotes === null ? null : String(staffNotes).trim().slice(0, 5000) || null;
+      staffNotes === undefined || staffNotes === null ? null : String(staffNotes).trim().slice(0, STAFF_NOTES_MAX_LENGTH) || null;
 
     const user = await User.create({
       name: nameTrim,
       email: emailTrim,
       password: pass,
       role: normRole,
+      salonId,
       isEmailVerified: true,
       emailVerificationToken: null,
       speciality: spec,
       staffNotes: notes,
+      profilePhotoUrl: profilePhotoUrl ? String(profilePhotoUrl).trim().slice(0, 2048) : null,
+      staffBio: staffBio ? String(staffBio).trim().slice(0, 8000) : null,
+      skills: Array.isArray(skills) ? skills : [],
+      yearsExperience: yearsExperience != null ? Number(yearsExperience) : null,
     });
 
     return sendCreated(
@@ -143,32 +166,33 @@ const createStaffMember = async (req, res, next) => {
       },
       'Team member created. They can sign in with this email and password.'
     );
-  } catch (e) {
-    if (e instanceof UniqueConstraintError || e?.name === 'SequelizeUniqueConstraintError') {
+  } catch (error) {
+    if (error instanceof UniqueConstraintError || error?.name === 'SequelizeUniqueConstraintError') {
       return sendBadRequest(res, 'An account with that email already exists.');
     }
-    if (e?.parent?.code === '23505') {
+    if (error?.parent?.code === '23505') {
       return sendBadRequest(res, 'An account with that email already exists.');
     }
-    next(e);
+    next(error);
   }
 };
 
 const updateStaffMember = async (req, res, next) => {
   try {
+    const salonId = requireStaffSalonId(req.user);
     const { id } = req.params;
     const row = await User.findByPk(id);
-    if (!row || !['staff', 'admin'].includes(row.role)) {
+    if (!row || !STAFF_DIRECTORY_ROLES.includes(row.role) || String(row.salonId) !== String(salonId)) {
       return sendNotFound(res, 'Team member not found');
     }
 
-    const { name, email, role, speciality, staffNotes, password } = req.body;
+    const { name, email, role, speciality, staffNotes, password, profilePhotoUrl, staffBio, skills, yearsExperience } = req.body;
     const patch = {};
 
     if (name !== undefined) {
       const t = String(name).trim();
-      if (!t || t.length > 120) {
-        return sendBadRequest(res, 'Name must be 1–120 characters.');
+      if (!t || t.length > NAME_MAX_LENGTH) {
+        return sendBadRequest(res, `Name must be 1–${NAME_MAX_LENGTH} characters.`);
       }
       patch.name = t;
     }
@@ -182,11 +206,13 @@ const updateStaffMember = async (req, res, next) => {
     }
     if (role !== undefined) {
       const norm = String(role).toLowerCase();
-      if (!['staff', 'admin'].includes(norm)) {
+      if (!STAFF_DIRECTORY_ROLES.includes(norm)) {
         return sendBadRequest(res, 'Role must be staff or admin.');
       }
-      if (norm === 'staff' && row.role === 'admin') {
-        const otherAdmins = await User.count({ where: { role: 'admin', id: { [Op.ne]: id } } });
+      if (norm === STAFF_ROLE_STAFF && row.role === STAFF_ROLE_ADMIN) {
+        const otherAdmins = await User.count({
+          where: { role: STAFF_ROLE_ADMIN, salonId, id: { [Op.ne]: id } },
+        });
         if (otherAdmins === 0) {
           return sendBadRequest(res, 'Cannot demote the last admin.');
         }
@@ -197,20 +223,36 @@ const updateStaffMember = async (req, res, next) => {
       patch.speciality =
         speciality === null || speciality === ''
           ? null
-          : String(speciality).trim().slice(0, 500) || null;
+          : String(speciality).trim().slice(0, SPECIALITY_MAX_LENGTH) || null;
     }
     if (staffNotes !== undefined) {
       patch.staffNotes =
         staffNotes === null || staffNotes === ''
           ? null
-          : String(staffNotes).trim().slice(0, 5000) || null;
+          : String(staffNotes).trim().slice(0, STAFF_NOTES_MAX_LENGTH) || null;
     }
     if (password !== undefined && String(password).length > 0) {
       const p = String(password);
-      if (p.length < 6) {
-        return sendBadRequest(res, 'Password must be at least 6 characters.');
+      if (p.length < PASSWORD_MIN_LENGTH) {
+        return sendBadRequest(res, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`);
       }
       patch.password = p;
+    }
+    if (profilePhotoUrl !== undefined) {
+      patch.profilePhotoUrl =
+        profilePhotoUrl === null || profilePhotoUrl === ''
+          ? null
+          : String(profilePhotoUrl).trim().slice(0, 2048) || null;
+    }
+    if (staffBio !== undefined) {
+      patch.staffBio =
+        staffBio === null || staffBio === '' ? null : String(staffBio).trim().slice(0, 8000) || null;
+    }
+    if (skills !== undefined) {
+      patch.skills = Array.isArray(skills) ? skills : [];
+    }
+    if (yearsExperience !== undefined) {
+      patch.yearsExperience = yearsExperience === null || yearsExperience === '' ? null : Number(yearsExperience);
     }
 
     if (Object.keys(patch).length === 0) {
@@ -219,34 +261,37 @@ const updateStaffMember = async (req, res, next) => {
 
     await row.update(patch);
     await row.reload({
-      attributes: ['id', 'name', 'email', 'role', 'speciality', 'staffNotes', 'createdAt'],
+      attributes: ['id', 'name', 'email', 'role', 'speciality', 'staffNotes', 'profilePhotoUrl', 'staffBio', 'skills', 'yearsExperience', 'createdAt'],
     });
     return sendSuccess(res, { member: row }, 'Team member updated.');
-  } catch (e) {
-    if (e instanceof UniqueConstraintError || e?.name === 'SequelizeUniqueConstraintError') {
+  } catch (error) {
+    if (error instanceof UniqueConstraintError || error?.name === 'SequelizeUniqueConstraintError') {
       return sendBadRequest(res, 'An account with that email already exists.');
     }
-    if (e?.parent?.code === '23505') {
+    if (error?.parent?.code === '23505') {
       return sendBadRequest(res, 'An account with that email already exists.');
     }
-    next(e);
+    next(error);
   }
 };
 
 const deleteStaffMember = async (req, res, next) => {
   try {
+    const salonId = requireStaffSalonId(req.user);
     const { id } = req.params;
     if (id === req.user.id) {
       return sendBadRequest(res, 'You cannot delete your own account.');
     }
 
     const row = await User.findByPk(id);
-    if (!row || !['staff', 'admin'].includes(row.role)) {
+    if (!row || !STAFF_DIRECTORY_ROLES.includes(row.role) || String(row.salonId) !== String(salonId)) {
       return sendNotFound(res, 'Team member not found');
     }
 
-    if (row.role === 'admin') {
-      const otherAdmins = await User.count({ where: { role: 'admin', id: { [Op.ne]: id } } });
+    if (row.role === STAFF_ROLE_ADMIN) {
+      const otherAdmins = await User.count({
+        where: { role: STAFF_ROLE_ADMIN, salonId, id: { [Op.ne]: id } },
+      });
       if (otherAdmins === 0) {
         return sendBadRequest(res, 'Cannot delete the last admin.');
       }
@@ -265,9 +310,11 @@ const deleteStaffMember = async (req, res, next) => {
 
     await row.destroy();
     return sendSuccess(res, null, 'Team member removed.');
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    next(error);
   }
 };
+
+// ─── Exports ───
 
 export { listTeam, seedDemoStaff, createStaffMember, updateStaffMember, deleteStaffMember };

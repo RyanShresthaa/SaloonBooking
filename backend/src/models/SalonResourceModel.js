@@ -18,6 +18,13 @@ export default (sequelize) => {
         allowNull: false,
         defaultValue: true,
       },
+      salonId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'marketplace_salons', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
+      },
     },
     {
       tableName: 'salon_resources',

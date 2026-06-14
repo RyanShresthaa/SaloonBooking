@@ -4,7 +4,11 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'staff' | 'customer';
+  role: 'super_admin' | 'admin' | 'staff' | 'customer';
+  /** Operational tenant for staff/admin; may be absent for customers. */
+  salonId?: string | null;
+  /** Public marketplace slug for this tenant, when `salonId` matches a listing. */
+  salonSlug?: string | null;
   loyaltyPoints?: number;
   marketingEmailOptIn?: boolean;
   clientNotes?: string | null;

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { getMe, patchMe, exportMySalonData } from '@/lib/api/auth';
 import AuthGuard from '@/components/layout/AuthGuard';
@@ -8,6 +9,8 @@ import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
 import { applyTheme, readStoredTheme, type ThemeChoice } from '@/lib/theme';
 
+// ─── Types ───
+
 interface ProfileForm {
   name: string;
   clientNotes: string;
@@ -15,27 +18,29 @@ interface ProfileForm {
   marketingEmailOptIn: boolean;
 }
 
+// ─── Exports ───
+
 export default function AccountPage() {
-  const { updateUser } = useAuthStore();
+  const { updateUser, user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState('');
   const [savedMsg, setSavedMsg] = useState('');
   const [themeChoice, setThemeChoice] = useState<ThemeChoice>(() => readStoredTheme() ?? 'light');
 
-  const apply = (mode: ThemeChoice) => {
-    applyTheme(mode);
-    setThemeChoice(mode);
-  };
-
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<ProfileForm>({
     defaultValues: { marketingEmailOptIn: true, name: '', clientNotes: '', allergies: '' },
+  });
+
+  const resetRef = useRef(reset);
+  useEffect(() => {
+    resetRef.current = reset;
   });
 
   useEffect(() => {
     getMe()
       .then((res) => {
         const u = res.data.data;
-        reset({
+        resetRef.current({
           name: u.name || '',
           clientNotes: u.clientNotes || '',
           allergies: u.allergies || '',
@@ -44,7 +49,12 @@ export default function AccountPage() {
       })
       .catch((err: unknown) => setServerError(getApiErrorMessage(err, 'Could not load profile.')))
       .finally(() => setLoading(false));
-  }, [reset]);
+  }, []);
+
+  const apply = (mode: ThemeChoice) => {
+    applyTheme(mode);
+    setThemeChoice(mode);
+  };
 
   const onSubmit = async (data: ProfileForm) => {
     setServerError('');
@@ -90,7 +100,7 @@ export default function AccountPage() {
     return (
       <AuthGuard>
         <div className="flex justify-center py-20" role="status" aria-label="Loading profile">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-stone-300 border-t-stone-800" aria-hidden />
         </div>
       </AuthGuard>
     );
@@ -98,17 +108,42 @@ export default function AccountPage() {
 
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-2xl space-y-8">
-        <header className="border-b border-stone-300/50 pb-8 dark:border-stone-600/50">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">
+      <div className="page-shell-form">
+        <header className="page-header">
+          <p className="page-eyebrow">
             Privacy &amp; CRM
           </p>
-          <h1 className="font-display text-3xl text-stone-900 dark:text-stone-50 sm:text-4xl">Account</h1>
-          <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
+          <h1 className="page-title">Account</h1>
+          <p className="page-lede">
             Salon notes and allergies help stylists prepare. Marketing opt-in is separate from appointment reminder
             settings at booking time.
           </p>
         </header>
+
+        {user?.email ? (
+          <aside className="surface-card rounded-[var(--radius-card)] p-4 sm:p-5" aria-label="Signed-in account">
+            <p className="page-eyebrow">Signed in</p>
+            <p className="mt-1 text-sm font-medium text-stone-900 dark:text-stone-100">{user.email}</p>
+            <p className="mt-3 text-xs font-medium text-stone-600 dark:text-stone-400">Quick links</p>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+              <Link to="/dashboard" className="link-quiet font-medium">
+                Overview
+              </Link>
+              <Link to="/appointments" className="link-quiet font-medium">
+                Appointments
+              </Link>
+              <Link to="/waitlist" className="link-quiet font-medium">
+                Waitlist
+              </Link>
+              <Link to="/reviews" className="link-quiet font-medium">
+                Reviews
+              </Link>
+              <Link to="/retail" className="link-quiet font-medium">
+                Retail
+              </Link>
+            </div>
+          </aside>
+        ) : null}
 
         {serverError ? (
           <div className="rounded-md border border-red-200/90 bg-red-50/90 px-4 py-3 text-sm text-red-900">{serverError}</div>
@@ -120,7 +155,7 @@ export default function AccountPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="surface-card space-y-6 rounded-lg p-6 sm:p-8">
           <Input label="Display name" {...register('name')} />
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="clientNotes" className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+            <label htmlFor="clientNotes" className="section-label">
               Client notes (for the salon)
             </label>
             <textarea
@@ -132,7 +167,7 @@ export default function AccountPage() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="allergies" className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+            <label htmlFor="allergies" className="section-label">
               Allergies &amp; sensitivities
             </label>
             <textarea
@@ -154,7 +189,7 @@ export default function AccountPage() {
           </Button>
         </form>
 
-        <section className="surface-muted rounded-lg border-stone-300/80 p-5 sm:p-6 dark:border-stone-700/80">
+        <section className="surface-muted rounded-lg border-stone-300/80 p-5 sm:p-6 dark:border-stone-700/80" aria-label="Appearance">
           <h2 className="font-display text-lg text-stone-900 dark:text-stone-50">Appearance</h2>
           <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">Light or dark interface on this device.</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -167,7 +202,7 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <section className="surface-muted rounded-lg border-stone-300/80 p-5 sm:p-6 dark:border-stone-700/80">
+        <section className="surface-muted rounded-lg border-stone-300/80 p-5 sm:p-6 dark:border-stone-700/80" aria-label="Your data export">
           <h2 className="font-display text-lg text-stone-900 dark:text-stone-50">Your data</h2>
           <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
             Download a JSON copy of your profile and booking history. For full account deletion, contact the salon.

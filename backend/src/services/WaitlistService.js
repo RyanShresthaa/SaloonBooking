@@ -2,8 +2,9 @@ import { WaitlistEntry, Service } from '../models/Index.js';
 import auditService from './AuditService.js';
 
 class WaitlistService {
-  async list(userId, role) {
-    const where = role === 'admin' || role === 'staff' ? {} : { userId };
+  async list(userId, role, salonId = null) {
+    const salonWide = role === 'admin' || role === 'staff';
+    const where = salonWide && salonId ? { salonId } : salonWide ? {} : { userId };
     return WaitlistEntry.findAll({
       where,
       include: [
@@ -24,6 +25,7 @@ class WaitlistService {
     const row = await WaitlistEntry.create({
       userId,
       serviceId,
+      salonId: service.salonId,
       preferredDate: preferredDate || null,
       phone: phone || null,
       notes: notes || null,
@@ -39,7 +41,7 @@ class WaitlistService {
     return row;
   }
 
-  async updateStatus(id, status, userId, role) {
+  async updateStatus(id, status, userId, role, salonId = null) {
     const row = await WaitlistEntry.findByPk(id);
     if (!row) {
       const error = new Error('Waitlist entry not found');
@@ -48,6 +50,11 @@ class WaitlistService {
     }
 
     const salonWide = role === 'admin' || role === 'staff';
+    if (salonWide && salonId && String(row.salonId) !== String(salonId)) {
+      const error = new Error('Waitlist entry not found');
+      error.statusCode = 404;
+      throw error;
+    }
     if (!salonWide) {
       if (row.userId !== userId) {
         const error = new Error('You are not authorized to update this entry');

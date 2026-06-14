@@ -26,6 +26,13 @@ export default (sequelize) => {
         type: DataTypes.STRING(500),
         allowNull: true,
       },
+      salonId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'marketplace_salons', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
+      },
     },
     {
       tableName: 'staff_time_offs',

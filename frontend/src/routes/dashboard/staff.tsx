@@ -18,6 +18,12 @@ import Input from '@/components/ui/Input';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
 
+// ─── Constants ───
+
+const PASSWORD_MIN_CHARS = 6;
+
+// ─── Exports ───
+
 export default function StaffAdminPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
@@ -168,13 +174,15 @@ export default function StaffAdminPage() {
   }, [formUserId, team]);
 
   useEffect(() => {
-    syncFormUser();
+    queueMicrotask(() => {
+      syncFormUser();
+    });
   }, [syncFormUser]);
 
   if (user?.role !== 'admin') {
     return (
       <AuthGuard>
-        <div className="mx-auto max-w-lg py-16 text-center">
+        <div className="page-shell-form py-16 text-center">
           <p className="text-stone-600 dark:text-stone-400">Only salon admins can manage staff here.</p>
           <Link to="/dashboard" className="mt-4 inline-block text-sm font-semibold text-stone-800 underline dark:text-stone-200">
             Back to overview
@@ -186,11 +194,11 @@ export default function StaffAdminPage() {
 
   return (
     <AuthGuard>
-      <div className="mx-auto max-w-4xl space-y-10 pb-16">
-        <header className="border-b border-stone-300/50 pb-8 dark:border-stone-600/50">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Admin</p>
-          <h1 className="font-display text-3xl text-stone-900 dark:text-stone-50 sm:text-4xl">Staff &amp; hours</h1>
-          <p className="mt-2 text-sm text-stone-600 dark:text-stone-300">
+      <div className="page-shell-staff">
+        <header className="page-header">
+          <p className="page-eyebrow">Admin</p>
+          <h1 className="page-title">Staff &amp; hours</h1>
+          <p className="page-lede">
             Add stylists or admins, default desk hours used by the slot engine, and leave blocks that hide someone from
             the calendar.
           </p>
@@ -214,7 +222,7 @@ export default function StaffAdminPage() {
         <section className="surface-card rounded-lg p-6 sm:p-8">
           <h2 className="font-display text-xl text-stone-900 dark:text-stone-50">Team</h2>
           <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-            Create accounts with the password you choose (min 6 characters). New members are email-verified so they can
+            Create accounts with the password you choose (min {PASSWORD_MIN_CHARS} characters). New members are email-verified so they can
             sign in immediately. Optional speciality shows in appointment &quot;Assigned staff&quot; lists; notes are
             internal to this page.
           </p>
@@ -226,8 +234,8 @@ export default function StaffAdminPage() {
               setError('');
               setAddBanner('');
               setSeedBanner('');
-              if (!addName.trim() || !addEmail.trim() || addPassword.length < 6) {
-                setError('Name, email, and a password of at least 6 characters are required.');
+              if (!addName.trim() || !addEmail.trim() || addPassword.length < PASSWORD_MIN_CHARS) {
+                setError(`Name, email, and a password of at least ${PASSWORD_MIN_CHARS} characters are required.`);
                 return;
               }
               createStaffMutation.mutate();
@@ -244,7 +252,7 @@ export default function StaffAdminPage() {
               required
             />
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+              <label className="section-label">
                 Role
               </label>
               <select
@@ -335,8 +343,10 @@ export default function StaffAdminPage() {
                           setError('Name and email are required.');
                           return;
                         }
-                        if (editPassword.length > 0 && editPassword.length < 6) {
-                          setError('New password must be at least 6 characters, or leave blank to keep the current one.');
+                        if (editPassword.length > 0 && editPassword.length < PASSWORD_MIN_CHARS) {
+                          setError(
+                            `New password must be at least ${PASSWORD_MIN_CHARS} characters, or leave blank to keep the current one.`,
+                          );
                           return;
                         }
                         updateStaffMutation.mutate({
@@ -352,14 +362,14 @@ export default function StaffAdminPage() {
                         });
                       }}
                     >
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                      <p className="mb-3 section-label">
                         Edit team member
                       </p>
                       <div className="grid gap-3 sm:grid-cols-2">
                         <Input label="Full name" value={editName} onChange={(e) => setEditName(e.target.value)} required />
                         <Input label="Work email" type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} required />
                         <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+                          <label className="section-label">
                             Role
                           </label>
                           <select
@@ -417,7 +427,7 @@ export default function StaffAdminPage() {
                           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                             <span className="font-medium text-stone-900 dark:text-stone-100">{m.name}</span>
                             <span className="text-stone-600 dark:text-stone-400">{m.email}</span>
-                            <span className="rounded bg-stone-200/60 px-2 py-0.5 text-xs uppercase tracking-wide text-stone-700 dark:bg-stone-800 dark:text-stone-300">
+                            <span className="rounded bg-stone-200/70 px-2 py-0.5 text-xs font-medium text-stone-700 dark:bg-stone-800 dark:text-stone-300">
                               {m.role}
                             </span>
                           </div>
@@ -501,7 +511,7 @@ export default function StaffAdminPage() {
             }}
           >
             <div className="flex flex-col gap-1.5 sm:col-span-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+              <label className="section-label">
                 Team member
               </label>
               <select
