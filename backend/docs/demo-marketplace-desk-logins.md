@@ -20,10 +20,15 @@ After login, **admin** and **staff** users with a marketplace `salonId` are redi
 | --- | --- | --- |
 | Velvet Shear Studio | `desk.velvet@demo.salon` | `/marketplace/velvet-shear-studio-kathmandu` |
 
-Legacy URL `/marketplace/velvet-shear-studio-austin` is accepted and redirected to the Kathmandu slug above.
-| Harbor Nail Atelier | `desk.harbor@demo.salon` | `/marketplace/harbor-nail-atelier-pokhara` |
-| Rosewood Barber Collective | `desk.rosewood@demo.salon` | `/marketplace/rosewood-barber-collective` |
-| Lumière Spa & Brow | `desk.lumiere@demo.salon` | `/marketplace/lumiere-spa-brow-kathmandu` |
+Salon	Email (login)
+Velvet Shear Studio
+desk.velvet@demo.salon
+Harbor Nail Atelier
+desk.harbor@demo.salon
+Rosewood Barber Collective
+desk.rosewood@demo.salon
+Lumière Spa & Brow
+desk.lumiere@demo.salon
 
 Public contact addresses (`hello@velvetshear.demo`, etc.) are **not** sign-in accounts; they are display-only on listings.
 

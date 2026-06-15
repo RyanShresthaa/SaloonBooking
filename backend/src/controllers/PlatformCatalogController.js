@@ -28,11 +28,28 @@ const createCategory = async (req, res, next) => {
   }
 };
 
+function pickCategoryPatch(body) {
+  const b = body || {};
+  const out = {};
+  if (Object.prototype.hasOwnProperty.call(b, 'name')) out.name = String(b.name ?? '').trim();
+  if (Object.prototype.hasOwnProperty.call(b, 'slug')) out.slug = String(b.slug ?? '').trim().toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(b, 'iconUrl')) out.iconUrl = b.iconUrl ? String(b.iconUrl).trim() : null;
+  if (Object.prototype.hasOwnProperty.call(b, 'sortOrder')) {
+    const n = Number(b.sortOrder);
+    if (!Number.isFinite(n)) return { error: 'sortOrder must be a number' };
+    out.sortOrder = Math.trunc(n);
+  }
+  return { patch: out };
+}
+
 const patchCategory = async (req, res, next) => {
   try {
     const row = await PlatformServiceCategory.findByPk(req.params.id);
     if (!row) return sendNotFound(res, 'Not found');
-    await row.update(req.body || {});
+    const { patch, error } = pickCategoryPatch(req.body);
+    if (error) return sendBadRequest(res, error);
+    if (Object.keys(patch).length === 0) return sendBadRequest(res, 'No allowed fields to update');
+    await row.update(patch);
     return sendSuccess(res, row, 'Updated');
   } catch (e) {
     next(e);
@@ -80,11 +97,37 @@ const createBanner = async (req, res, next) => {
   }
 };
 
+function pickBannerPatch(body) {
+  const b = body || {};
+  const out = {};
+  if (Object.prototype.hasOwnProperty.call(b, 'title')) out.title = String(b.title ?? '').trim();
+  if (Object.prototype.hasOwnProperty.call(b, 'imageUrl')) out.imageUrl = String(b.imageUrl ?? '').trim();
+  if (Object.prototype.hasOwnProperty.call(b, 'linkUrl')) out.linkUrl = b.linkUrl ? String(b.linkUrl).trim() : null;
+  if (Object.prototype.hasOwnProperty.call(b, 'isActive')) out.isActive = Boolean(b.isActive);
+  if (Object.prototype.hasOwnProperty.call(b, 'sortOrder')) {
+    const n = Number(b.sortOrder);
+    if (!Number.isFinite(n)) return { error: 'sortOrder must be a number' };
+    out.sortOrder = Math.trunc(n);
+  }
+  if (Object.prototype.hasOwnProperty.call(b, 'startsAt')) {
+    out.startsAt = b.startsAt ? new Date(b.startsAt) : null;
+    if (out.startsAt && Number.isNaN(out.startsAt.getTime())) return { error: 'Invalid startsAt' };
+  }
+  if (Object.prototype.hasOwnProperty.call(b, 'endsAt')) {
+    out.endsAt = b.endsAt ? new Date(b.endsAt) : null;
+    if (out.endsAt && Number.isNaN(out.endsAt.getTime())) return { error: 'Invalid endsAt' };
+  }
+  return { patch: out };
+}
+
 const patchBanner = async (req, res, next) => {
   try {
     const row = await PlatformHomeBanner.findByPk(req.params.id);
     if (!row) return sendNotFound(res, 'Not found');
-    await row.update(req.body || {});
+    const { patch, error } = pickBannerPatch(req.body);
+    if (error) return sendBadRequest(res, error);
+    if (Object.keys(patch).length === 0) return sendBadRequest(res, 'No allowed fields to update');
+    await row.update(patch);
     return sendSuccess(res, row, 'Updated');
   } catch (e) {
     next(e);

@@ -11,6 +11,7 @@ import {
   adminListMarketplace,
   adminModerateMarketplace,
 } from '@/lib/api/marketplace';
+import { platformPatchSalon } from '@/lib/api/platformAdmin';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
 import { useAuthStore } from '@/store/authStore';
 
@@ -48,6 +49,8 @@ export default function AdminMarketplacePage() {
   const [error, setError] = useState('');
   const [notes, setNotes] = useState('');
   const [slugOverride, setSlugOverride] = useState('');
+  const [featuredRankInput, setFeaturedRankInput] = useState('');
+  const [verifiedPublic, setVerifiedPublic] = useState(false);
   const [acting, setActing] = useState(false);
 
   const loadList = useCallback(() => {
@@ -84,11 +87,20 @@ export default function AdminMarketplacePage() {
     setDetail(null);
     setNotes('');
     setSlugOverride('');
+    setFeaturedRankInput('');
+    setVerifiedPublic(false);
     adminGetMarketplaceListing(id)
       .then((res) => {
         setDetail(res.data.data as Record<string, unknown>);
-        const s = (res.data.data as { slug?: string | null })?.slug;
+        const d = res.data.data as {
+          slug?: string | null;
+          featuredRank?: number | null;
+          verifiedAt?: string | null;
+        };
+        const s = d?.slug;
         setSlugOverride(s ? String(s) : '');
+        setFeaturedRankInput(d.featuredRank != null ? String(d.featuredRank) : '');
+        setVerifiedPublic(Boolean(d.verifiedAt));
       })
       .catch((err: unknown) => setError(getApiErrorMessage(err, 'Could not load listing.')))
       .finally(() => setLoadingDetail(false));
@@ -108,6 +120,34 @@ export default function AdminMarketplacePage() {
       loadDetail(selectedId);
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Update failed.'));
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const savePlacement = async () => {
+    if (!selectedId) return;
+    const trimmed = featuredRankInput.trim();
+    let featuredRank: number | null = null;
+    if (trimmed !== '') {
+      const n = Number(trimmed);
+      if (!Number.isFinite(n) || n < 0) {
+        setError('Featured rank must be a non-negative number, or leave blank to clear.');
+        return;
+      }
+      featuredRank = Math.trunc(n);
+    }
+    setActing(true);
+    setError('');
+    try {
+      await platformPatchSalon(selectedId, {
+        featuredRank,
+        verifiedAt: verifiedPublic ? new Date().toISOString() : null,
+      });
+      await loadList();
+      loadDetail(selectedId);
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Could not update placement.'));
     } finally {
       setActing(false);
     }
@@ -241,6 +281,36 @@ export default function AdminMarketplacePage() {
                   placeholder="leave blank to auto-generate"
                   disabled={!isPlatformModerator}
                 />
+                {isPlatformModerator ? (
+                  <div className="rounded-lg border border-stone-200 bg-stone-50/80 p-4 dark:border-stone-600 dark:bg-stone-900/40">
+                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500">Placement &amp; trust</p>
+                    <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+                      Higher <strong>featured rank</strong> sorts first when customers pick “Featured”. Leave blank to remove
+                      from featured ordering.
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      <Input
+                        label="Featured rank (optional)"
+                        value={featuredRankInput}
+                        onChange={(e) => setFeaturedRankInput(e.target.value)}
+                        placeholder="e.g. 10 — blank = not featured"
+                        disabled={acting}
+                      />
+                      <label className="flex items-center gap-2 text-sm text-stone-800 dark:text-stone-200">
+                        <input
+                          type="checkbox"
+                          checked={verifiedPublic}
+                          onChange={(e) => setVerifiedPublic(e.target.checked)}
+                          disabled={acting}
+                        />
+                        Show as verified on marketplace
+                      </label>
+                      <Button type="button" size="sm" variant="secondary" loading={acting} onClick={savePlacement}>
+                        Save placement
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
                 {isPlatformModerator ? (
                   <div className="flex flex-wrap gap-2 pt-2">
                     <Button type="button" size="sm" loading={acting} onClick={() => moderate('approved')}>
