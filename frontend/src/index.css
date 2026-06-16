@@ -103,6 +103,57 @@
     font-family: var(--font-family-display);
   }
 
+  /* Skeleton shimmer (e.g. marketplace apply live preview) */
+  @keyframes skeleton-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.375rem;
+    background: linear-gradient(
+      90deg,
+      rgb(231 229 228 / 0.85),
+      rgb(245 245 244 / 0.95),
+      rgb(231 229 228 / 0.85)
+    );
+  }
+
+  .dark .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(41 37 36 / 0.9),
+      rgb(68 64 60 / 0.95),
+      rgb(41 37 36 / 0.9)
+    );
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.42),
+      transparent
+    );
+    animation: skeleton-shimmer 1.35s ease-in-out infinite;
+  }
+
+  .dark .skeleton-shimmer::after {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.08),
+      transparent
+    );
+  }
+
   /* Surface tokens — two levels of elevation */
   .surface-card {
     @apply rounded-[var(--radius-card)] text-stone-900 transition-[border-color,box-shadow,background-color]

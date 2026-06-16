@@ -68,7 +68,7 @@ export default function AppShell() {
       <RealtimeSync />
       <main
         id="main-content"
-        className="customer-main-rail mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12"
+        className="customer-main-rail mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12"
         tabIndex={-1}
       >
         <CustomerMotionExperience>

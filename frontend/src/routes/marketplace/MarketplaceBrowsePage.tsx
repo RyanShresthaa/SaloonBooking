@@ -62,9 +62,10 @@ export default function MarketplaceBrowsePage() {
     },
   });
 
-  const load = () => {
+  const load = (sortOverride?: MarketplaceSort) => {
     setLoading(true);
     setError('');
+    const sortVal = sortOverride ?? sort;
     const minP = minPrice.trim() === '' ? undefined : Number(minPrice);
     const maxP = maxPrice.trim() === '' ? undefined : Number(maxPrice);
     const minR = minRating.trim() === '' ? undefined : Number(minRating);
@@ -77,7 +78,7 @@ export default function MarketplaceBrowsePage() {
       minPrice: minP != null && !Number.isNaN(minP) ? minP : undefined,
       maxPrice: maxP != null && !Number.isNaN(maxP) ? maxP : undefined,
       minRating: minR != null && !Number.isNaN(minR) ? minR : undefined,
-      sort,
+      sort: sortVal,
       limit: 48,
       offset: 0,
     })
@@ -96,8 +97,8 @@ export default function MarketplaceBrowsePage() {
   }, []);
 
   return (
-    <div className="page-shell-spacious">
-      <header className="page-header">
+    <div className="w-full space-y-10">
+      <header className="page-header text-left">
         <p className="page-eyebrow">Marketplace</p>
         <h1 className="page-title">{isSalonDesk ? 'Salon directory' : 'Find a salon'}</h1>
         <p className="page-lede">
@@ -165,22 +166,6 @@ export default function MarketplaceBrowsePage() {
             onChange={(e) => setMinRating(e.target.value)}
             placeholder="e.g. 4"
           />
-          <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-3">
-            <label className="text-[13px] font-medium text-stone-700 dark:text-stone-300">Sort by</label>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as MarketplaceSort)}
-              className="rounded-md border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 focus-ring dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
-            >
-              <option value="name">Name (A–Z)</option>
-              <option value="featured">Featured first</option>
-              <option value="sponsored">Sponsored first</option>
-              <option value="price_asc">Price: lowest first</option>
-              <option value="price_desc">Price: highest first</option>
-              <option value="rating">Highest rated</option>
-              <option value="reviews">Most reviewed</option>
-            </select>
-          </div>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
           <Button type="button" onClick={load} loading={loading}>
@@ -196,11 +181,36 @@ export default function MarketplaceBrowsePage() {
         {error ? <p className="mt-4 text-sm text-red-800">{error}</p> : null}
       </section>
 
-      <p className="mb-4 text-sm text-stone-600 dark:text-stone-400">
-        {loading ? 'Loading…' : `${count} listing${count === 1 ? '' : 's'}`}
-      </p>
+      <div className="sticky top-2 z-[1] flex flex-col gap-3 rounded-xl border border-stone-200/90 bg-white/90 px-4 py-3 shadow-sm backdrop-blur-md sm:flex-row sm:items-end sm:justify-between dark:border-stone-700 dark:bg-stone-900/90">
+        <p className="text-sm font-medium text-stone-800 dark:text-stone-200">
+          {loading ? 'Loading…' : `${count} listing${count === 1 ? '' : 's'}`}
+        </p>
+        <div className="flex w-full min-w-0 flex-col gap-1.5 sm:w-auto sm:min-w-[14rem]">
+          <label htmlFor="marketplace-sort" className="text-[13px] font-medium text-stone-700 dark:text-stone-300">
+            Sort by
+          </label>
+          <select
+            id="marketplace-sort"
+            value={sort}
+            onChange={(e) => {
+              const v = e.target.value as MarketplaceSort;
+              setSort(v);
+              load(v);
+            }}
+            className="w-full rounded-md border border-stone-300 bg-white px-3 py-2.5 text-sm text-stone-900 focus-ring dark:border-stone-600 dark:bg-stone-950 dark:text-stone-100"
+          >
+            <option value="name">Name (A–Z)</option>
+            <option value="featured">Featured first</option>
+            <option value="sponsored">Sponsored first</option>
+            <option value="price_asc">Price: lowest first</option>
+            <option value="price_desc">Price: highest first</option>
+            <option value="rating">Highest rated</option>
+            <option value="reviews">Most reviewed</option>
+          </select>
+        </div>
+      </div>
 
-      <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid w-full items-stretch gap-6 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
         {salons.map((s) => (
           <li key={s.id}>
             <Link

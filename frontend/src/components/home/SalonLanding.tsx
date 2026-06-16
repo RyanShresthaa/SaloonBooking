@@ -2,8 +2,17 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Calendar, Heart, Sparkles, Sun } from 'lucide-react';
+import {
+  CalendarCheck,
+  Crown,
+  FlaskConical,
+  Link2,
+  Palette,
+  Scissors,
+  UserRound,
+} from 'lucide-react';
 import HeroAuthCTA from '@/components/home/HeroAuthCTA';
+import { LANDING_IMAGES } from '@/components/home/landingImages';
 import { useAuthStore } from '@/store/authStore';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -16,11 +25,49 @@ function prefersReducedMotion() {
 
 const MARQUEE_WORDS = ['Cut & color', 'Silk press', 'Scalp reset', 'Same-day text'];
 
-const SERVICES = [
-  { icon: Sparkles, title: 'Cut & style', blurb: 'Shapes that grow out kindly — so you still like your hair six weeks later.' },
-  { icon: Sun,      title: 'Color',       blurb: 'Balayage, gloss, and corrections with honest timing and patch tests.' },
-  { icon: Heart,    title: 'Treatments',  blurb: 'Silk presses, masks, and scalp care when your hair needs a quiet reset.' },
-  { icon: Calendar, title: 'Booking',     blurb: 'Same-day notes, running-late texts, and a diary that does not panic.' },
+const SERVICE_FEATURES = [
+  {
+    icon: Palette,
+    title: 'Hair coloring',
+    description:
+      'Balayage, highlights, babylights, and full color with clear timing, strand tests, and aftercare you can follow at home.',
+  },
+  {
+    icon: FlaskConical,
+    title: 'Hair treatments',
+    description:
+      'Keratin smoothing, deep conditioning masks, bond builders, and scalp care when your hair needs strength, shine, or relief.',
+  },
+  {
+    icon: Scissors,
+    title: 'Haircuts & styling',
+    description:
+      'Precision cuts for every texture, polished blowouts, and editorial updos — shaped to your face, routine, and grow-out plan.',
+  },
+  {
+    icon: Link2,
+    title: 'Extensions & texture',
+    description:
+      'Tape-ins, sew-ins, blending, and curl or wave shaping so length and volume look natural, secure, and easy to maintain.',
+  },
+  {
+    icon: Crown,
+    title: 'Bridal & events',
+    description:
+      'Trials, wedding-morning styling, and party-ready looks that photograph well and stay comfortable through the last dance.',
+  },
+  {
+    icon: UserRound,
+    title: "Men's grooming",
+    description:
+      'Fades, tapers, beard trims, and shape-ups with hot towels and detail work so the neckline and edges stay sharp longer.',
+  },
+  {
+    icon: CalendarCheck,
+    title: 'Consultations',
+    description:
+      'Patch tests, color corrections, and honest plans before we open a bowl — so goals, budget, and maintenance all line up.',
+  },
 ] as const;
 
 const STATS = [
@@ -46,7 +93,8 @@ function MarqueeContent() {
 type CtaVariant = 'primary' | 'ghost';
 
 function CtaLink({ to, variant = 'primary', children }: { to: string; variant?: CtaVariant; children: React.ReactNode }) {
-  const base = 'inline-flex items-center justify-center rounded-md px-5 py-2.5 text-sm font-medium transition focus-ring';
+  const base =
+    'inline-flex w-full items-center justify-center rounded-md px-5 py-2.5 text-sm font-medium transition focus-ring sm:w-auto';
   const styles: Record<CtaVariant, string> = {
     primary: 'border border-rose-200/50 bg-rose-50 text-stone-900 hover:bg-rose-100/90',
     ghost:   'border border-stone-500/90 bg-transparent text-stone-100 hover:border-stone-400 hover:bg-stone-800/60',
@@ -144,18 +192,29 @@ export default function SalonLanding() {
   }, []);
 
   return (
-    <div ref={rootRef} className="customer-landing overflow-hidden pb-20">
+    <div ref={rootRef} className="customer-landing overflow-hidden pb-16 md:pb-24">
 
-      {/* Hero */}
-      <section className="relative left-1/2 mb-20 w-screen max-w-none -translate-x-1/2 px-4 pb-16 pt-2 sm:px-6 sm:pb-20 sm:pt-4">
-        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-gradient-to-b from-[#f5f0e8] via-[#faf8f5] to-[#f3efe8] dark:from-stone-950 dark:via-stone-950 dark:to-stone-950" />
-        <div data-blob aria-hidden className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-rose-200/35 blur-3xl dark:bg-rose-900/12" />
-        <div data-blob aria-hidden className="pointer-events-none absolute -right-16 bottom-0 h-80 w-80 rounded-full bg-amber-100/40 blur-3xl dark:bg-amber-950/15" />
-        <div data-blob aria-hidden className="pointer-events-none absolute left-1/3 top-1/2 h-48 w-48 -translate-y-1/2 rounded-full bg-stone-200/35 blur-2xl dark:bg-stone-800/25" />
+      {/* Hero — split copy + photography */}
+      <section className="relative left-1/2 w-screen max-w-none -translate-x-1/2 overflow-hidden border-b border-stone-200/70 dark:border-stone-800">
+        <div className="absolute inset-0 z-0">
+          <img
+            src={LANDING_IMAGES.hero}
+            alt=""
+            className="h-full min-h-[22rem] w-full object-cover object-center sm:min-h-[26rem] lg:min-h-[28rem]"
+            loading="eager"
+            decoding="async"
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-r from-[#faf8f5] via-[#faf8f5]/95 to-[#faf8f5]/55 dark:from-stone-950 dark:via-stone-950/92 dark:to-stone-950/40 lg:via-[#faf8f5]/88 lg:to-transparent dark:lg:via-stone-950/85 dark:lg:to-stone-950/25"
+          />
+        </div>
+        <div data-blob aria-hidden className="pointer-events-none absolute -left-20 top-16 z-[1] h-64 w-64 rounded-full bg-rose-200/30 blur-3xl dark:bg-rose-900/15" />
+        <div data-blob aria-hidden className="pointer-events-none absolute bottom-10 right-10 z-[1] h-56 w-56 rounded-full bg-amber-100/35 blur-3xl dark:bg-amber-950/20" />
 
-        <div className="mx-auto grid max-w-6xl gap-12 px-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
-          <div className="relative z-10">
-            <p data-hero-meta className="mb-5 page-eyebrow">Independent salon · city hours</p>
+        <div className="relative z-[2] mx-auto grid max-w-6xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 md:py-20 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-12 lg:py-24">
+          <div>
+            <p data-hero-meta className="mb-4 page-eyebrow">Independent salon · city hours</p>
 
             <h1 className="font-display text-[2.35rem] font-medium leading-[1.05] tracking-[-0.03em] text-stone-900 dark:text-stone-50 sm:text-5xl lg:text-[3.25rem]">
               <span className="block overflow-hidden pb-1"><span data-hero-line className="block">Hair that feels</span></span>
@@ -163,13 +222,13 @@ export default function SalonLanding() {
               <span className="block overflow-hidden pb-1"><span data-hero-line className="block">only calmer.</span></span>
             </h1>
 
-            <p data-hero-meta className="mt-7 max-w-md text-base leading-relaxed text-stone-600 dark:text-stone-400">
+            <p data-hero-meta className="mt-6 max-w-md text-base leading-relaxed text-stone-700 dark:text-stone-300">
               We keep color notes, patch tests, and the small preferences you mention once — so every visit picks up where the last one ended.
             </p>
 
-            <div data-hero-cta className="mt-9"><HeroAuthCTA /></div>
+            <div data-hero-cta className="mt-8"><HeroAuthCTA /></div>
 
-            <p data-hero-meta className="mt-8 text-sm text-stone-500 dark:text-stone-500">
+            <p data-hero-meta className="mt-6 text-sm text-stone-600 dark:text-stone-400">
               Walk-ins when we can ·{' '}
               <Link to="/marketplace" className="link-quiet font-medium">Book ahead when you cannot</Link>
               <span className="mx-1.5 text-stone-400 dark:text-stone-600" aria-hidden>·</span>
@@ -177,68 +236,163 @@ export default function SalonLanding() {
             </p>
           </div>
 
-          <div data-hero-visual className="relative isolate flex min-h-[280px] items-stretch lg:min-h-[360px]">
-            <div className="surface-card relative flex w-full flex-col justify-between overflow-hidden rounded-xl border-stone-200/80 bg-[#fffefb] p-7 shadow-sm dark:border-stone-700/80 dark:bg-stone-900/80 sm:p-9">
-              <div aria-hidden className="absolute right-6 top-6 h-24 w-24 rounded-full border border-rose-200/60 dark:border-rose-800/50" />
-              <div aria-hidden className="absolute -bottom-8 -left-8 h-40 w-40 rounded-full bg-gradient-to-tr from-rose-100/90 to-transparent dark:from-rose-900/40" />
-              <p className="font-display relative max-w-[14rem] text-xl italic leading-snug text-stone-800 dark:text-stone-200 sm:text-2xl">
-                &ldquo;Warm water, honest timing, and nobody rushing the toner.&rdquo;
-              </p>
-              <div className="relative mt-10 flex items-end justify-between gap-4 border-t border-stone-200/80 pt-6 dark:border-stone-700/80">
-                <div>
-                  <p className="text-xs font-medium text-stone-500 dark:text-stone-400">Next quiet slot</p>
-                  <p className="mt-1 font-display text-2xl text-stone-900 dark:text-stone-100">Thu · 2:40</p>
-                </div>
-                <div className="rounded-full bg-rose-100 px-4 py-2 text-xs font-semibold text-rose-900 dark:bg-rose-950/80 dark:text-rose-100">
-                  Low noise
+          <div data-hero-visual className="relative hidden min-h-[240px] lg:block">
+            <div className="relative h-full min-h-[280px] overflow-hidden rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] ring-1 ring-black/10 dark:ring-white/10">
+              <img
+                src={LANDING_IMAGES.heroAccent}
+                alt="Salon chairs and styling stations"
+                className="h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent p-6 pt-16">
+                <p className="font-display max-w-[16rem] text-lg italic leading-snug text-white drop-shadow-sm sm:text-xl">
+                  &ldquo;Warm water, honest timing, and nobody rushing the toner.&rdquo;
+                </p>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-white/95">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-white/75">Next quiet slot</p>
+                    <p className="mt-0.5 font-display text-xl">Thu · 2:40</p>
+                  </div>
+                  <span className="rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide ring-1 ring-white/25 backdrop-blur-sm">
+                    Low noise
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Mobile — salon photo strip (split hero panel is lg+ only) */}
+        <div className="relative z-[2] mt-8 px-4 pb-10 sm:px-6 lg:hidden">
+          <div className="mx-auto max-w-6xl overflow-hidden rounded-xl ring-1 ring-black/10 dark:ring-white/10">
+            <img
+              src={LANDING_IMAGES.heroAccent}
+              alt="Salon interior"
+              className="aspect-[16/10] w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+        </div>
       </section>
 
       {/* Marquee */}
-      <div aria-hidden className="landing-marquee-animate relative left-1/2 mb-16 w-screen max-w-none -translate-x-1/2 overflow-hidden border-y border-stone-200/80 bg-stone-900 py-3 text-stone-50 dark:border-stone-800">
+      <div
+        aria-hidden
+        className="landing-marquee-animate relative left-1/2 w-screen max-w-none -translate-x-1/2 overflow-hidden border-b border-stone-200/80 bg-stone-900 py-3 text-stone-50 dark:border-stone-800"
+      >
         <div className="landing-marquee-track">
           <MarqueeContent />
           <MarqueeContent />
         </div>
       </div>
 
-      {/* Services */}
-      <section aria-label="Services" className="mb-20 grid gap-10 lg:grid-cols-3 lg:gap-12">
-        <div data-reveal className="lg:col-span-1">
-          <h2 className="font-display text-3xl tracking-tight text-stone-900 dark:text-stone-50">Small shop habits.</h2>
-          <p className="mt-4 text-stone-600 dark:text-stone-400">
-            We write things down, use timers we trust, and say no when a service needs another day. Boring in the best way.
-          </p>
+      {/* Services / features */}
+      <section
+        aria-label="Salon services"
+        className="border-b border-stone-200/60 bg-[#faf8f5]/90 px-4 py-16 dark:border-stone-800/80 dark:bg-stone-950/50 sm:px-6 md:py-24"
+      >
+        <div className="mx-auto max-w-6xl">
+          <div data-reveal className="mx-auto max-w-2xl text-center">
+            <h2 className="font-display text-3xl tracking-tight text-stone-900 dark:text-stone-50 sm:text-4xl">
+              Services we live in every day
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-stone-600 dark:text-stone-400">
+              From lived-in color to event-ready finishes — here is what we book most, with room on the card for the
+              details that matter to your hair.
+            </p>
+          </div>
+          <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
+            {SERVICE_FEATURES.map(({ icon: Icon, title, description }) => (
+              <article
+                key={title}
+                data-reveal
+                className="group flex min-h-[220px] flex-col rounded-xl border border-stone-200/90 bg-[#fffefb] px-6 py-8 shadow-sm transition-[border-color,box-shadow,transform] duration-300 hover:border-rose-200/80 hover:shadow-md dark:border-stone-700/90 dark:bg-stone-900/80 dark:hover:border-rose-900/50 sm:min-h-[240px]"
+              >
+                <div className="mb-5 inline-flex rounded-lg bg-rose-50 p-3 text-rose-700 ring-1 ring-rose-100/80 dark:bg-rose-950/50 dark:text-rose-200 dark:ring-rose-900/40">
+                  <Icon aria-hidden className="h-7 w-7 transition-transform duration-300 group-hover:scale-105" strokeWidth={1.5} />
+                </div>
+                <h3 className="font-display text-xl leading-snug text-stone-900 dark:text-stone-100">{title}</h3>
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-stone-600 dark:text-stone-400">{description}</p>
+              </article>
+            ))}
+          </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
-          {SERVICES.map(({ icon: Icon, title, blurb }) => (
-            <article key={title} data-reveal className="group surface-card rounded-xl border-stone-200/90 p-6 transition-[border-color,box-shadow] duration-300 hover:border-rose-200/80 hover:shadow-md dark:border-stone-700/90 dark:hover:border-rose-900/50">
-              <Icon aria-hidden className="mb-4 h-6 w-6 text-rose-600 transition-transform duration-300 group-hover:scale-110 dark:text-rose-400" strokeWidth={1.5} />
-              <h3 className="font-display text-xl text-stone-900 dark:text-stone-100">{title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-stone-400">{blurb}</p>
-            </article>
-          ))}
+      </section>
+
+      {/* Photo strip — between services and social proof */}
+      <section aria-label="Salon gallery" className="border-b border-stone-200/60 bg-white px-4 py-16 dark:border-stone-800/80 dark:bg-stone-950 sm:px-6 md:py-24">
+        <div className="mx-auto max-w-6xl space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            <div className="overflow-hidden rounded-xl ring-1 ring-stone-200/80 dark:ring-stone-700/80">
+              <img
+                src={LANDING_IMAGES.galleryColor}
+                alt="Hair colour and highlights in progress"
+                className="aspect-[4/3] h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div className="overflow-hidden rounded-xl ring-1 ring-stone-200/80 dark:ring-stone-700/80">
+              <img
+                src={LANDING_IMAGES.galleryInterior}
+                alt="Salon interior and styling area"
+                className="aspect-[4/3] h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div className="overflow-hidden rounded-xl ring-1 ring-stone-200/80 dark:ring-stone-700/80">
+              <img
+                src={LANDING_IMAGES.galleryClient}
+                alt="Client in salon chair"
+                className="aspect-[4/3] h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-xl ring-1 ring-stone-200/80 dark:ring-stone-700/80">
+            <img
+              src={LANDING_IMAGES.banner}
+              alt="Salon atmosphere"
+              className="aspect-[21/9] max-h-[min(22rem,40vw)] w-full object-cover sm:max-h-none"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
         </div>
       </section>
 
       {/* Testimonial */}
-      <section data-reveal aria-label="What clients say" className="relative mb-20 overflow-hidden rounded-2xl border border-stone-200/90 bg-gradient-to-br from-stone-50 to-white px-6 py-14 dark:border-stone-700/90 dark:from-stone-900 dark:to-stone-950 sm:px-12 sm:py-16">
-        <div aria-hidden className="pointer-events-none absolute -right-20 top-0 h-64 w-64 rounded-full bg-rose-100/50 blur-3xl dark:bg-rose-900/25" />
-        <div className="relative mx-auto max-w-2xl text-center">
-          <p className="page-eyebrow text-rose-800/90 dark:text-rose-300/90">From the floor</p>
-          <p className="font-display mt-6 text-2xl italic leading-snug text-stone-800 dark:text-stone-200 sm:text-3xl">
-            &ldquo;The best compliment is when someone&apos;s mum books off their recommendation.&rdquo;
-          </p>
-          <p className="mt-6 text-sm text-stone-500">— Floor lead, Saturday shift</p>
+      <section
+        data-reveal
+        aria-label="What clients say"
+        className="relative border-b border-stone-200/60 bg-stone-50/90 px-4 py-16 dark:border-stone-800/80 dark:bg-stone-900/40 sm:px-6 md:py-24"
+      >
+        <div className="mx-auto max-w-6xl">
+          <div className="relative overflow-hidden rounded-2xl border border-stone-200/90 bg-gradient-to-br from-white to-stone-50/80 px-6 py-14 dark:border-stone-700/90 dark:from-stone-900 dark:to-stone-950 sm:px-12 sm:py-16">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-20 top-0 h-64 w-64 rounded-full bg-rose-100/50 blur-3xl dark:bg-rose-900/25"
+            />
+            <div className="relative mx-auto max-w-2xl text-center">
+              <p className="page-eyebrow text-rose-800/90 dark:text-rose-300/90">From the floor</p>
+              <p className="font-display mt-6 text-2xl italic leading-snug text-stone-800 dark:text-stone-200 sm:text-3xl">
+                &ldquo;The best compliment is when someone&apos;s mum books off their recommendation.&rdquo;
+              </p>
+              <p className="mt-6 text-sm text-stone-500 dark:text-stone-400">— Floor lead, Saturday shift</p>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Stats */}
-      <section aria-label="At a glance" className="mb-16 grid gap-6 border-t border-stone-200/80 pt-12 dark:border-stone-800 sm:grid-cols-3">
+      <section
+        aria-label="At a glance"
+        className="grid gap-8 border-b border-stone-200/60 bg-white px-4 py-16 dark:border-stone-800/80 dark:bg-stone-950 sm:grid-cols-3 sm:px-6 md:py-24"
+      >
         {STATS.map(({ value, label }) => (
           <div key={value} data-stat className="text-center sm:text-left">
             <p className="font-display text-4xl text-stone-900 dark:text-stone-50">{value}</p>
@@ -248,13 +402,16 @@ export default function SalonLanding() {
       </section>
 
       {/* Footer CTA */}
-      <section aria-label="Get started" className="relative rounded-2xl bg-stone-900 px-6 py-12 text-center text-stone-50 sm:px-10 sm:py-14">
+      <section
+        aria-label="Get started"
+        className="relative mx-4 rounded-2xl bg-stone-900 px-6 py-16 text-center text-stone-50 sm:mx-6 sm:px-10 md:py-24"
+      >
         <div data-footer-line aria-hidden className="absolute left-6 right-6 top-0 h-px bg-gradient-to-r from-transparent via-rose-400/50 to-transparent sm:left-10 sm:right-10" />
         <h2 className="font-display text-2xl sm:text-3xl">Come as you are — tangles welcome.</h2>
         <p className="mx-auto mt-3 max-w-lg text-sm text-stone-400">
           If you are new, tell us what last went wrong with your color. We actually want to know.
         </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <div className="mx-auto mt-8 flex max-w-md flex-col items-stretch gap-3 sm:max-w-none sm:flex-row sm:flex-wrap sm:justify-center">
           <FooterCta />
         </div>
       </section>

@@ -4,19 +4,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Moon, Sun } from 'lucide-react';
 import { getFeatureFlags, type FeatureFlags } from '@/lib/api/meta';
+import { applyTheme, THEME_KEY } from '@/lib/theme';
 
 // Styles
 
 const navLink =
-  'rounded-full px-3.5 py-2 text-[13px] font-medium tracking-wide text-[#78716c] transition-[color,background-color,box-shadow] duration-200 hover:bg-black/[0.035] hover:text-[#1c1917] dark:text-stone-400 dark:hover:bg-stone-800/50 dark:hover:text-stone-100';
+  'rounded-full px-3.5 py-2 text-[0.9375rem] font-medium tracking-[0.01em] text-[#78716c] transition-[color,background-color,box-shadow] duration-200 hover:bg-black/[0.035] hover:text-[#1c1917] dark:text-stone-400 dark:hover:bg-stone-800/50 dark:hover:text-stone-100';
 
 const navLinkActive =
-  'rounded-full px-3.5 py-2 text-[13px] font-semibold tracking-wide text-[#1c1917] shadow-[inset_0_-2px_0_0_#b07d62,0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-[#e0d9d0] bg-white/90 dark:bg-stone-900/90 dark:text-stone-50 dark:ring-stone-600';
+  'rounded-full px-3.5 py-2 text-[0.9375rem] font-semibold tracking-[0.01em] text-[#1c1917] shadow-[inset_0_-2px_0_0_#b07d62,0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-[#e0d9d0] bg-white/90 dark:bg-stone-900/90 dark:text-stone-50 dark:ring-stone-600';
 
 const dropdownItem =
-  'mx-1 block rounded-md px-3 py-2.5 text-[13px] font-medium text-stone-700 transition-colors hover:bg-stone-100 hover:text-stone-900 dark:text-stone-200 dark:hover:bg-stone-800';
+  'mx-1 block rounded-md px-3 py-2.5 text-[0.9375rem] font-medium tracking-[0.01em] text-stone-700 transition-colors hover:bg-stone-100 hover:text-stone-900 dark:text-stone-200 dark:hover:bg-stone-800';
 
 const dropdownItemActive = 'bg-stone-100 text-stone-900 dark:bg-stone-800 dark:text-stone-50';
 
@@ -122,6 +123,43 @@ function filterNavForUser(items: NavItem[], flags: FeatureFlags, role: string | 
   });
 }
 
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setDark(document.documentElement.classList.contains('dark'));
+    sync();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== THEME_KEY) return;
+      sync();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const toggle = () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    const next: 'light' | 'dark' = isDark ? 'light' : 'dark';
+    applyTheme(next);
+    setDark(next === 'dark');
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="rounded-full p-2 text-[#78716c] transition hover:bg-black/[0.06] hover:text-[#1c1917] focus-ring dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+      aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      {dark ? (
+        <Sun className="h-5 w-5 shrink-0" strokeWidth={1.5} aria-hidden />
+      ) : (
+        <Moon className="h-5 w-5 shrink-0" strokeWidth={1.5} aria-hidden />
+      )}
+    </button>
+  );
+}
+
 // Navbar
 
 export default function Navbar() {
@@ -219,7 +257,7 @@ export default function Navbar() {
                 aria-expanded={moreOpen}
                 aria-haspopup="true"
                 aria-controls="nav-more-menu"
-                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium tracking-wide transition-colors focus-ring ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[0.9375rem] font-medium tracking-[0.01em] transition-colors focus-ring ${
                   moreHasActive || moreOpen
                     ? 'bg-white/90 text-[#1c1917] shadow-[inset_0_-2px_0_0_#b07d62] ring-1 ring-[#e0d9d0] dark:bg-stone-800/90 dark:text-stone-50 dark:ring-stone-600'
                     : 'text-[#78716c] hover:bg-black/[0.035] hover:text-[#1c1917] dark:text-stone-300 dark:hover:bg-stone-800/60'
@@ -261,6 +299,7 @@ export default function Navbar() {
         <div className={`flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3 md:gap-4 ${
           isAuthenticated ? 'md:border-l md:border-stone-200/70 md:pl-5 dark:md:border-stone-700/70' : ''
         }`}>
+          <ThemeToggle />
           {isAuthenticated ? (
             <>
               <span className="hidden max-w-[11rem] truncate text-xs leading-snug text-[#78716c] sm:block dark:text-stone-400">
@@ -278,25 +317,25 @@ export default function Navbar() {
             <>
               <Link
                 to="/marketplace"
-                className="rounded-md px-2.5 py-2 text-[11px] font-medium text-stone-700 transition hover:bg-stone-200/40 hover:text-stone-900 focus-ring sm:px-3 sm:text-xs dark:text-stone-300 dark:hover:bg-stone-800/50"
+                className="rounded-md px-2.5 py-2 text-base font-medium tracking-[0.01em] text-stone-700 transition hover:bg-stone-200/40 hover:text-stone-900 focus-ring sm:px-3 dark:text-stone-300 dark:hover:bg-stone-800/50"
               >
                 Salons
               </Link>
               <Link
                 to="/demo"
-                className="inline-flex rounded-md px-2.5 py-2 text-[11px] font-medium text-stone-700 underline decoration-stone-400/70 decoration-1 underline-offset-2 transition-colors hover:text-stone-900 hover:decoration-stone-600 focus-ring sm:px-3 sm:text-xs dark:text-stone-300 dark:decoration-stone-600 dark:hover:text-stone-100"
+                className="inline-flex rounded-md px-2.5 py-2 text-base font-medium tracking-[0.01em] text-stone-700 underline decoration-stone-400/70 decoration-1 underline-offset-2 transition-colors hover:text-stone-900 hover:decoration-stone-600 focus-ring sm:px-3 dark:text-stone-300 dark:decoration-stone-600 dark:hover:text-stone-100"
               >
                 Book a demo
               </Link>
               <Link
                 to="/login"
-                className="rounded-md px-3 py-2 text-xs font-medium text-stone-600 transition hover:bg-stone-200/40 hover:text-stone-900 focus-ring dark:text-stone-300 dark:hover:bg-stone-800/50"
+                className="rounded-md px-3 py-2 text-base font-medium tracking-[0.01em] text-stone-600 transition hover:bg-stone-200/40 hover:text-stone-900 focus-ring dark:text-stone-300 dark:hover:bg-stone-800/50"
               >
                 Sign in
               </Link>
               <Link
                 to="/register"
-                className="rounded-full border border-[#2d2926] bg-[#2d2926] px-4 py-2 text-xs font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-[#231f1c] hover:bg-[#231f1c] focus-ring dark:border-stone-100 dark:bg-stone-100 dark:text-[#1c1917] dark:hover:bg-white"
+                className="rounded-full border border-[#2d2926] bg-[#2d2926] px-4 py-2 text-base font-semibold tracking-[0.01em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-[#231f1c] hover:bg-[#231f1c] focus-ring dark:border-stone-100 dark:bg-stone-100 dark:text-[#1c1917] dark:hover:bg-white"
               >
                 Register
               </Link>
@@ -351,7 +390,7 @@ function MobileNav({
             <Link
               key={item.to}
               to={item.to}
-              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-medium ${
+              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-base font-medium tracking-[0.01em] ${
                 pathActive(pathname, item.to)
                   ? 'bg-white/90 text-[#1c1917] shadow-[inset_0_-2px_0_0_#b07d62] ring-1 ring-[#e0d9d0] dark:bg-stone-800 dark:text-stone-50 dark:ring-stone-600'
                   : 'text-[#57534e] hover:bg-black/[0.04] hover:text-[#1c1917] dark:text-stone-300 dark:hover:bg-stone-800/50'
@@ -365,7 +404,7 @@ function MobileNav({
             type="button"
             onClick={() => setMoreOpen((o) => !o)}
             aria-expanded={moreOpen}
-            className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-medium ${
+            className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-3.5 py-2 text-base font-medium tracking-[0.01em] ${
               moreOpen || moreHasActive
                 ? 'bg-white/90 text-[#1c1917] shadow-[inset_0_-2px_0_0_#b07d62] ring-1 ring-[#e0d9d0] dark:bg-stone-800 dark:text-stone-50'
                 : 'text-[#57534e] hover:bg-black/[0.04] hover:text-[#1c1917] dark:text-stone-300 dark:hover:bg-stone-800/50'
@@ -383,7 +422,7 @@ function MobileNav({
                 key={item.to}
                 to={item.to}
                 onClick={() => setMoreOpen(false)}
-                className={`rounded-full px-3 py-2.5 text-xs font-medium ${
+                className={`rounded-full px-3 py-2.5 text-base font-medium tracking-[0.01em] ${
                   pathActive(pathname, item.to)
                     ? 'bg-white/90 text-[#1c1917] ring-1 ring-[#e0d9d0] dark:bg-stone-800 dark:text-stone-50'
                     : 'text-[#57534e] hover:bg-black/[0.04] hover:text-[#1c1917] dark:text-stone-300 dark:hover:bg-stone-800/40'
