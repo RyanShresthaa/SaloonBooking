@@ -22,9 +22,13 @@ import salonReviewRoutes from './SalonReviewRoutes.js';
 
 const router = express.Router();
 
+const isProd = (process.env.NODE_ENV || 'development') === 'production';
+/** Same policy as App.js global limiter: no public cap in dev; optional RATE_LIMIT_DISABLED in prod. */
+const skipPublicRateLimit = process.env.RATE_LIMIT_DISABLED === '1' || !isProd;
 const publicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 120,
+  max: 300,
+  skip: () => skipPublicRateLimit,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many public requests from this IP.' },

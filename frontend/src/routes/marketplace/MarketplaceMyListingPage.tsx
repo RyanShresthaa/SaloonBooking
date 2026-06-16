@@ -24,6 +24,58 @@ function safeJsonParse<T>(raw: string, fallback: T): T {
   }
 }
 
+/** Team highlights must be JSON array of objects. Invalid JSON must not silently become `[]` (that wipes the team). */
+function parseStaffHighlightsForSave(
+  raw: string,
+): { ok: true; value: Record<string, unknown>[] } | { ok: false; message: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, value: [] };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return {
+      ok: false,
+      message:
+        'Team highlights is not valid JSON. Use straight double quotes (not “smart” quotes), no trailing commas, and no comments. Example: [{"name":"Alex Morgan","title":"Lead stylist","bio":"…","photoUrl":"https://…"}]',
+    };
+  }
+  if (Array.isArray(parsed)) {
+    if (!parsed.every((x) => x !== null && typeof x === 'object' && !Array.isArray(x))) {
+      return { ok: false, message: 'Team highlights must be an array of objects, one { … } per team member.' };
+    }
+    return { ok: true, value: parsed as Record<string, unknown>[] };
+  }
+  if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    return { ok: true, value: [parsed as Record<string, unknown>] };
+  }
+  return {
+    ok: false,
+    message: 'Team highlights must be a JSON array like [{"name":"…","title":"…"}] (or a single { … } object, which we will wrap as one member).',
+  };
+}
+
+function parseSocialLinksForSave(
+  raw: string,
+): { ok: true; value: Record<string, unknown> } | { ok: false; message: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: true, value: {} };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return {
+      ok: false,
+      message:
+        'Social links is not valid JSON. Use a single object with straight double quotes, e.g. {"instagram":"https://…"}.',
+    };
+  }
+  if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    return { ok: true, value: parsed as Record<string, unknown> };
+  }
+  return { ok: false, message: 'Social links must be a JSON object { … }, not an array.' };
+}
+
 export default function MarketplaceMyListingPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -101,11 +153,35 @@ export default function MarketplaceMyListingPage() {
     };
   }, [user]);
 
+  const reloadListing = () => {
+    if (!user || (user.role !== 'admin' && user.role !== 'staff')) return;
+    getTenantMarketplaceListing()
+      .then((res) => {
+        const row = res.data.data as Record<string, unknown>;
+        setStaffJson(JSON.stringify(row.staffHighlights ?? [], null, 2));
+        setSocialJson(JSON.stringify(row.socialLinks ?? {}, null, 2));
+      })
+      .catch(() => {
+        /* ignore refresh errors; save already succeeded */
+      });
+  };
+
   const onSave = async () => {
     setSaving(true);
     setError('');
     setOk('');
     try {
+      const staffParsed = parseStaffHighlightsForSave(staffJson);
+      if (!staffParsed.ok) {
+        setError(staffParsed.message);
+        return;
+      }
+      const socialParsed = parseSocialLinksForSave(socialJson);
+      if (!socialParsed.ok) {
+        setError(socialParsed.message);
+        return;
+      }
+
       const parsedHours = safeJsonParse(operatingHoursJson.trim(), {});
       const operatingHours =
         parsedHours && typeof parsedHours === 'object' && !Array.isArray(parsedHours) && Object.keys(parsedHours).length > 0
@@ -131,12 +207,13 @@ export default function MarketplaceMyListingPage() {
         operatingHours,
         amenities: linesToArray(amenitiesText),
         galleryImages: linesToArray(galleryText),
-        staffHighlights: safeJsonParse(staffJson, []),
-        socialLinks: safeJsonParse(socialJson, {}),
+        staffHighlights: staffParsed.value,
+        socialLinks: socialParsed.value,
       };
 
       await patchTenantMarketplaceListing(body);
       setOk('Saved. Your public profile updates immediately (slug and approval status are managed by the platform).');
+      reloadListing();
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Could not save.'));
     } finally {

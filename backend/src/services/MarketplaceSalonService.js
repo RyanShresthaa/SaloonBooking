@@ -1,5 +1,21 @@
 import { Op, Sequelize } from 'sequelize';
-import { MarketplaceSalon, SalonResource, Service, SalonReview, User } from '../models/Index.js';
+import {
+  sequelize,
+  MarketplaceSalon,
+  SalonResource,
+  Service,
+  SalonReview,
+  User,
+  Appointment,
+  WaitlistEntry,
+  VisitFeedback,
+  NotificationLog,
+  RetailProduct,
+  NotificationTemplate,
+  StaffTimeOff,
+  CustomerFavorite,
+  PromoCode,
+} from '../models/Index.js';
 import { slugifyBase } from '../utils/slugify.js';
 
 /** Old bookmarks / typos → current canonical slug (approved listing must exist under canonical). */
@@ -124,14 +140,61 @@ class MarketplaceSalonService {
     return row;
   }
 
+  /**
+   * Remove a marketplace row and all tenant-scoped operational data that FK-restricts deletion.
+   * (DB uses ON DELETE RESTRICT on services, appointments, resources, etc.)
+   */
   async deleteListing(id) {
-    const row = await MarketplaceSalon.findByPk(id);
+    const salonId = String(id || '').trim();
+    const row = await MarketplaceSalon.findByPk(salonId);
     if (!row) {
       const e = new Error('Listing not found');
       e.statusCode = 404;
       throw e;
     }
-    await row.destroy();
+    const t = await sequelize.transaction();
+    try {
+      const sidWhere = { salonId };
+
+      const appointments = await Appointment.findAll({
+        where: sidWhere,
+        attributes: ['id'],
+        transaction: t,
+      });
+      const appointmentIds = appointments.map((a) => a.id);
+      if (appointmentIds.length) {
+        await VisitFeedback.destroy({ where: { appointmentId: { [Op.in]: appointmentIds } }, transaction: t });
+        await NotificationLog.destroy({ where: { appointmentId: { [Op.in]: appointmentIds } }, transaction: t });
+      }
+      await Appointment.destroy({ where: sidWhere, transaction: t });
+      await WaitlistEntry.destroy({ where: sidWhere, transaction: t });
+      await StaffTimeOff.destroy({ where: sidWhere, transaction: t });
+      await Service.destroy({ where: sidWhere, transaction: t });
+
+      const templates = await NotificationTemplate.findAll({
+        where: sidWhere,
+        attributes: ['id'],
+        transaction: t,
+      });
+      const templateIds = templates.map((x) => x.id);
+      if (templateIds.length) {
+        await NotificationLog.destroy({ where: { templateId: { [Op.in]: templateIds } }, transaction: t });
+      }
+      await NotificationTemplate.destroy({ where: sidWhere, transaction: t });
+      await RetailProduct.destroy({ where: sidWhere, transaction: t });
+
+      await SalonReview.destroy({ where: { marketplaceSalonId: salonId }, transaction: t });
+      await CustomerFavorite.destroy({ where: { marketplaceSalonId: salonId }, transaction: t });
+      await PromoCode.destroy({ where: sidWhere, transaction: t });
+
+      await SalonResource.destroy({ where: sidWhere, transaction: t });
+
+      await row.destroy({ transaction: t });
+      await t.commit();
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
   }
 
   async moderate({ id, actorUserId, listingStatus, adminReviewNotes, slug }) {

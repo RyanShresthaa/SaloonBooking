@@ -7,15 +7,14 @@ import { authenticate } from '../middlewares/AuthMiddleware.js';
 
 const router = express.Router();
 
-const authLimiter = rateLimit({
+/** Brute-force protection for credential / token routes only — not GET /me (session polling, React Strict Mode). */
+const authSensitiveLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 40,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many attempts from this device. Please try again later.' },
 });
-
-router.use(authLimiter);
 
 /**
  * @swagger
@@ -54,6 +53,7 @@ router.use(authLimiter);
  */
 router.post(
   '/register',
+  authSensitiveLimiter,
   [
     body('name').trim().notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
@@ -86,6 +86,7 @@ router.get('/verify-email', authController.verifyEmail);
 
 router.post(
   '/resend-verification',
+  authSensitiveLimiter,
   [body('email').isEmail().withMessage('Valid email is required').normalizeEmail()],
   validate,
   authController.resendVerification
@@ -118,6 +119,7 @@ router.post(
  */
 router.post(
   '/login',
+  authSensitiveLimiter,
   [
     body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
     body('password').notEmpty().withMessage('Password is required'),
@@ -128,6 +130,7 @@ router.post(
 
 router.post(
   '/forgot-password',
+  authSensitiveLimiter,
   [body('email').isEmail().withMessage('Valid email is required').normalizeEmail()],
   validate,
   authController.forgotPassword
@@ -135,6 +138,7 @@ router.post(
 
 router.post(
   '/reset-password',
+  authSensitiveLimiter,
   [
     body('token').notEmpty().withMessage('Reset token is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),

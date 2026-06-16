@@ -95,6 +95,31 @@ function normalizeMediaUrls(raw: unknown): string[] {
   return [...new Set(out)];
 }
 
+/** Street lines separate from locality; last line is city, region · postal · country. */
+function formatSalonAddressLines(salon: {
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  region?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+}): string[] {
+  const lines: string[] = [];
+  const a1 = String(salon.addressLine1 || '').trim();
+  const a2 = String(salon.addressLine2 || '').trim();
+  if (a1) lines.push(a1);
+  if (a2) lines.push(a2);
+  const locality = [salon.city, salon.region]
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .join(', ');
+  const zip = String(salon.postalCode || '').trim();
+  const cc = String(salon.country || '').trim().toUpperCase();
+  const tail = [locality, zip, cc].filter(Boolean);
+  if (tail.length) lines.push(tail.join(' · '));
+  return lines;
+}
+
 function parseStaffHighlights(raw: unknown): StaffHighlight[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -362,9 +387,7 @@ export default function SalonProfilePage() {
 
   const bookHref = `/appointments/new?salonId=${encodeURIComponent(salon.id)}`;
   const waitHref = `/waitlist?salonId=${encodeURIComponent(salon.id)}`;
-  const addressLine = [salon.addressLine1, salon.addressLine2, [salon.city, salon.region].filter(Boolean).join(', '), salon.postalCode]
-    .filter(Boolean)
-    .join(' · ');
+  const addressLines = formatSalonAddressLines(salon);
   const rating = salon.avgRating ?? null;
   const reviewCount = salon.reviewCount ?? reviewTotal;
 
@@ -494,18 +517,29 @@ export default function SalonProfilePage() {
               <img src={heroImages[0]} alt="" className="h-full w-full object-cover" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 sm:grid-rows-2 lg:grid-cols-3 lg:grid-rows-2">
-              <div className="relative aspect-[16/10] min-h-[200px] sm:col-span-1 sm:row-span-2 lg:col-span-2 lg:row-span-2 lg:min-h-[320px]">
-                <img src={heroImages[0]} alt="" className="h-full w-full object-cover" />
+            <div
+              className="grid grid-cols-1 gap-1 sm:min-h-[min(72vw,440px)] sm:grid-cols-2 sm:[grid-template-rows:minmax(0,1fr)_minmax(0,1fr)] lg:min-h-[min(52vw,500px)] lg:grid-cols-3 lg:[grid-template-rows:minmax(0,1fr)_minmax(0,1fr)]"
+            >
+              {/* Primary: span full height of mosaic — fill cell (no aspect lock) so no gap under image */}
+              <div className="relative aspect-[16/10] min-h-[200px] sm:col-span-1 sm:row-span-2 sm:aspect-auto sm:min-h-0 sm:h-full lg:col-span-2 lg:row-span-2">
+                <img
+                  src={heroImages[0]}
+                  alt=""
+                  className="h-full w-full object-cover sm:absolute sm:inset-0 sm:h-full sm:w-full"
+                />
               </div>
               {heroImages[1] ? (
-                <div className="relative hidden aspect-[16/10] min-h-[140px] sm:block lg:aspect-auto lg:min-h-0">
-                  <img src={heroImages[1]} alt="" className="h-full w-full object-cover" />
+                <div className="relative hidden aspect-[16/10] min-h-[140px] sm:block sm:aspect-auto sm:min-h-0 sm:h-full">
+                  <img
+                    src={heroImages[1]}
+                    alt=""
+                    className="h-full w-full object-cover sm:absolute sm:inset-0 sm:h-full sm:w-full"
+                  />
                 </div>
               ) : null}
               {heroImages[2] ? (
-                <div className="relative hidden aspect-[16/10] min-h-[140px] sm:block lg:aspect-auto lg:min-h-0">
-                  <img src={heroImages[2]} alt="" className="h-full w-full object-cover" />
+                <div className="relative hidden aspect-[16/10] min-h-[140px] sm:block sm:aspect-auto sm:min-h-0 sm:h-full">
+                  <img src={heroImages[2]} alt="" className="h-full w-full object-cover sm:absolute sm:inset-0 sm:h-full sm:w-full" />
                   {heroImages.length > 3 ? (
                     <button
                       type="button"
@@ -520,7 +554,7 @@ export default function SalonProfilePage() {
                 <button
                   type="button"
                   onClick={() => setGalleryOpen(true)}
-                  className="relative hidden aspect-[16/10] min-h-[140px] items-center justify-center bg-stone-800/90 text-sm font-semibold text-white sm:flex"
+                  className="relative hidden min-h-[140px] items-center justify-center bg-stone-800/90 text-sm font-semibold text-white sm:flex sm:min-h-0 sm:h-full"
                 >
                   See all images
                 </button>
@@ -770,7 +804,17 @@ export default function SalonProfilePage() {
                 </div>
                 <div className="flex gap-2">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-stone-500" aria-hidden />
-                  <span className="leading-snug">{addressLine || 'Address on file'}</span>
+                  <address className="min-w-0 not-italic leading-snug">
+                    {addressLines.length ? (
+                      addressLines.map((line, i) => (
+                        <span key={i} className="block">
+                          {line}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="block">Address on file</span>
+                    )}
+                  </address>
                 </div>
                 {salon.publicPhone ? (
                   <div className="flex gap-2">

@@ -7,7 +7,6 @@ import swaggerSpec from './config/Swagger.js';
 import routes from './routes/Index.js';
 import { errorHandler, notFound } from './middlewares/ErrorMiddleware.js';
 import requestLogger from './middlewares/RequestLogMiddleware.js';
-import env from './config/Env.js';
 import { getPublicMailStatus } from './utils/emailHelper.js';
 import { isAllowedClientOrigin } from './config/corsOrigins.js';
 
@@ -27,9 +26,14 @@ app.use(
   })
 );
 
+const isProd = (process.env.NODE_ENV || 'development') === 'production';
+/** Local/staging: off by default (React Strict Mode doubles requests; SPA bursts one IP). Production: one shared bucket for all /api. */
+const skipGlobalApiRateLimit =
+  process.env.RATE_LIMIT_DISABLED === '1' || !isProd;
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 4000,
+  skip: () => skipGlobalApiRateLimit,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 app.use('/api', limiter);
