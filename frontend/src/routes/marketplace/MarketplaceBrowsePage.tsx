@@ -168,7 +168,7 @@ export default function MarketplaceBrowsePage() {
           />
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button type="button" onClick={load} loading={loading}>
+          <Button type="button" onClick={() => load()} loading={loading}>
             Search
           </Button>
           <Link
