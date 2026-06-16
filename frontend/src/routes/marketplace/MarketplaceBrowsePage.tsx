@@ -14,6 +14,7 @@ import { formatCurrency, CURRENCY_PREFIX } from '@/lib/utils/currency';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/store/authStore';
+import { formatSalonAddressLines } from '@/lib/utils/salonAddress';
 
 function formatPriceRange(s: MarketplaceSalonCard) {
   const lo = s.priceFrom;
@@ -211,7 +212,9 @@ export default function MarketplaceBrowsePage() {
       </div>
 
       <ul className="grid w-full items-stretch gap-6 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
-        {salons.map((s) => (
+        {salons.map((s) => {
+          const addressLines = formatSalonAddressLines(s);
+          return (
           <li key={s.id}>
             <Link
               to={s.slug ? `/marketplace/${encodeURIComponent(s.slug)}` : '#'}
@@ -237,16 +240,28 @@ export default function MarketplaceBrowsePage() {
                     Verified
                   </span>
                 ) : null}
-                <p className="mt-auto text-xs text-stone-500 dark:text-stone-500">
-                  {[s.city, s.region].filter(Boolean).join(', ') || '\u00a0'}
-                </p>
-                {formatPriceRange(s) ? (
-                  <p className="text-xs font-medium text-rose-800 dark:text-rose-300">{formatPriceRange(s)}</p>
-                ) : null}
+                <div className="mt-auto flex flex-col gap-1">
+                  {addressLines.length ? (
+                    <p className="line-clamp-3 break-words text-xs leading-snug text-stone-500 dark:text-stone-500">
+                      {addressLines.map((line, i) => (
+                        <span key={i}>
+                          {i > 0 ? <br /> : null}
+                          {line}
+                        </span>
+                      ))}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-stone-500 dark:text-stone-500">{'\u00a0'}</p>
+                  )}
+                  {formatPriceRange(s) ? (
+                    <p className="text-xs font-medium text-rose-800 dark:text-rose-300">{formatPriceRange(s)}</p>
+                  ) : null}
+                </div>
               </div>
             </Link>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {!loading && salons.length === 0 ? (

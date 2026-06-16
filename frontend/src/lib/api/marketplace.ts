@@ -7,8 +7,11 @@ export type MarketplaceSalonCard = {
   description: string;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
   region?: string | null;
+  postalCode?: string | null;
   country?: string | null;
   priceFrom?: number | null;
   priceTo?: number | null;
