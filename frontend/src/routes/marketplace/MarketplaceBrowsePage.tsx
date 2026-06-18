@@ -211,38 +211,49 @@ export default function MarketplaceBrowsePage() {
         </div>
       </div>
 
-      <ul className="grid w-full items-stretch gap-6 [grid-template-columns:repeat(auto-fill,minmax(280px,1fr))]">
+      <ul className="grid w-full gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {salons.map((s) => {
           const addressLines = formatSalonAddressLines(s);
+          const priceLabel = formatPriceRange(s);
+          const rating = ratingLine(s);
           return (
-          <li key={s.id}>
+          <li key={s.id} className="flex h-full min-h-0">
             <Link
               to={s.slug ? `/marketplace/${encodeURIComponent(s.slug)}` : '#'}
-              className="group flex h-full flex-col overflow-hidden rounded-lg border border-stone-200/90 bg-white shadow-sm transition hover:border-rose-200/80 hover:shadow-md dark:border-stone-700 dark:bg-stone-900/80 dark:hover:border-rose-900/50"
+              className="group flex h-full w-full flex-col overflow-hidden rounded-lg border border-stone-200/90 bg-white shadow-sm transition hover:border-rose-200/80 hover:shadow-md dark:border-stone-700 dark:bg-stone-900/80 dark:hover:border-rose-900/50"
             >
-              <div className="aspect-[16/9] w-full bg-stone-100 dark:bg-stone-800">
+              <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-stone-100 dark:bg-stone-800">
                 {s.coverImageUrl ? (
-                  <img src={s.coverImageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  <img
+                    src={s.coverImageUrl}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="lazy"
+                  />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-stone-400">No cover image</div>
+                  <div className="flex h-full min-h-[12rem] items-center justify-center text-sm text-stone-400">No cover image</div>
                 )}
               </div>
-              <div className="flex flex-1 flex-col gap-2 p-4">
-                <h2 className="font-display text-lg text-stone-900 group-hover:text-rose-900 dark:text-stone-50 dark:group-hover:text-rose-200">
+              <div className="flex min-h-0 flex-1 flex-col p-4">
+                <h2 className="font-display text-lg leading-snug text-stone-900 group-hover:text-rose-900 dark:text-stone-50 dark:group-hover:text-rose-200">
                   {s.name}
                 </h2>
-                <p className="line-clamp-2 text-sm text-stone-600 dark:text-stone-400">{s.description}</p>
-                {ratingLine(s) ? (
-                  <p className="text-xs font-medium text-amber-900 dark:text-amber-200/90">{ratingLine(s)}</p>
-                ) : null}
-                {s.verified ? (
-                  <span className="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
-                    Verified
-                  </span>
-                ) : null}
-                <div className="mt-auto flex flex-col gap-1">
+                <p className="mt-1.5 line-clamp-2 min-h-[2.75rem] text-sm leading-snug text-stone-600 dark:text-stone-400">
+                  {s.description || '\u00a0'}
+                </p>
+                <div className="mt-2 flex min-h-[1.375rem] flex-wrap items-center gap-x-2 gap-y-1">
+                  {rating ? (
+                    <p className="text-xs font-medium text-amber-900 dark:text-amber-200/90">{rating}</p>
+                  ) : null}
+                  {s.verified ? (
+                    <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
+                      Verified
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-auto border-t border-stone-100 pt-3 dark:border-stone-700/80">
                   {addressLines.length ? (
-                    <p className="line-clamp-3 break-words text-xs leading-snug text-stone-500 dark:text-stone-500">
+                    <p className="line-clamp-2 break-words text-xs leading-snug text-stone-500 dark:text-stone-500">
                       {addressLines.map((line, i) => (
                         <span key={i}>
                           {i > 0 ? <br /> : null}
@@ -253,9 +264,9 @@ export default function MarketplaceBrowsePage() {
                   ) : (
                     <p className="text-xs text-stone-500 dark:text-stone-500">{'\u00a0'}</p>
                   )}
-                  {formatPriceRange(s) ? (
-                    <p className="text-xs font-medium text-rose-800 dark:text-rose-300">{formatPriceRange(s)}</p>
-                  ) : null}
+                  <p className="mt-1 min-h-[1rem] text-xs font-medium text-rose-800 dark:text-rose-300">
+                    {priceLabel ?? '\u00a0'}
+                  </p>
                 </div>
               </div>
             </Link>
