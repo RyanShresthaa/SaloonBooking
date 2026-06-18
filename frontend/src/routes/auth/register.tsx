@@ -7,6 +7,7 @@ import { registerUser } from '@/lib/api/auth';
 import { getApiErrorMessage } from '@/lib/utils/apiError';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
+import ResendVerificationBlock from '@/components/auth/ResendVerificationBlock';
 import { CheckCircle } from 'lucide-react';
 
 const schema = z.object({
@@ -28,6 +29,7 @@ type RegisterPayload = {
 
 export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
   /** sent | queued | none = verification mail paths; immediate = verification disabled, can sign in */
   const [emailDispatch, setEmailDispatch] = useState<'sent' | 'queued' | 'none' | 'immediate'>('sent');
   const [serverError, setServerError] = useState('');
@@ -48,6 +50,7 @@ export default function RegisterPage() {
       } else if (payload?.verificationEmailSent === true) setEmailDispatch('sent');
       else if (payload?.verificationEmailQueued) setEmailDispatch('queued');
       else setEmailDispatch('none');
+      setRegisteredEmail(data.email.trim());
       setSuccess(true);
     } catch (error: unknown) {
       setServerError(getApiErrorMessage(error, 'Registration failed'));
@@ -86,7 +89,16 @@ export default function RegisterPage() {
                 environment.
               </>
             )}
+            {emailDispatch === 'none' && (
+              <>
+                Your account was created, but we could not send a verification email from this server. Use resend below
+                once mail is configured, or contact support.
+              </>
+            )}
           </p>
+          {emailDispatch !== 'immediate' && registeredEmail ? (
+            <ResendVerificationBlock lockedEmail={registeredEmail} className="mt-6 text-left" />
+          ) : null}
           <Link to="/login" className="link-quiet mt-8 inline-block text-sm font-semibold">
             Back to sign in
           </Link>
