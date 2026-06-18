@@ -89,21 +89,7 @@ export default function RegisterPage() {
                 environment.
               </>
             )}
-            {emailDispatch === 'none' && (
-              <>
-                Your account was created, but this server did not schedule email (SMTP is not configured on the host,
-                e.g. Render without <code className="rounded bg-stone-200 px-1">EMAIL_HOST</code>). Set the same{' '}
-                <code className="rounded bg-stone-200 px-1">EMAIL_*</code> variables on the API service as in your
-                local <code className="rounded bg-stone-200 px-1">.env</code>, redeploy, then use &quot;Resend
-                verification&quot;. Until then, use the verify link from server logs.
-              </>
-            )}
           </p>
-          {emailDispatch !== 'immediate' && (
-            <div className="mt-8 rounded-md border border-stone-200 bg-stone-50/80 px-4 py-4 text-left">
-              <ResendVerificationBlock lockedEmail={registeredEmail} />
-            </div>
-          )}
           <Link to="/login" className="link-quiet mt-8 inline-block text-sm font-semibold">
             Back to sign in
           </Link>

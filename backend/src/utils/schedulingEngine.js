@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 
-/** Normalize TIME / string to HH:mm:ss for dayjs */
+/** Normalize TIME  */
 export function timeToHhmmss(timeVal) {
   if (timeVal == null) return '00:00:00';
   if (typeof timeVal === 'string') {
@@ -22,7 +22,7 @@ export function getBufferMinutes(serviceLike) {
   };
 }
 
-/** Calendar block including cleanup / prep buffers (for conflict detection). */
+/** Calendar block including cleanup */
 export function blockedInterval(appointmentDate, startTime, endTime, serviceLike) {
   const { before, after } = getBufferMinutes(serviceLike);
   const start = parseAppointmentDateTime(appointmentDate, startTime).subtract(before, 'minute');

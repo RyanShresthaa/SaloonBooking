@@ -5,6 +5,10 @@ import validate from '../middlewares/ValidateMiddleware.js';
 import * as platformController from '../controllers/PlatformController.js';
 import * as catalogController from '../controllers/PlatformCatalogController.js';
 
+
+
+//Super admin ko lagi
+
 const router = express.Router();
 
 router.use(authenticate, authorize('super_admin'));
